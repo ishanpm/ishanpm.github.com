@@ -65,7 +65,7 @@ function updateWalls() {
 				if (string === null) string = y;
 			} else {
 				if (string !== null) {
-					var sprite = game.add.sprite(x*32, y*-32, 'asdf');
+					var sprite = game.add.sprite(x*32, y*-32);
 					game.physics.arcade.enable(sprite);
 					sprite.body.immovable = true;
 					sprite.height = (y - string) * 32;
@@ -78,7 +78,7 @@ function updateWalls() {
 		}
 		
 		if (string !== null) {
-			var sprite = game.add.sprite(x*32, y*-32, 'asdf');
+			var sprite = game.add.sprite(x*32, y*-32);
 			game.physics.arcade.enable(sprite);
 			sprite.body.immovable = true;
 			sprite.height = (y - string) * 32;
