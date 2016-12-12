@@ -61,13 +61,11 @@ function appendMaxLayers() {
 	var any = false;
 	
 	while (mapHeight * -32 > player.body.y 	- game.height) {
-		appendLayer('seg1');
+		appendLayer(['seg1', 'seg2'][Math.floor(Math.random()*2)]);
 		any = true;
 	}
 	
 	if (any) updateWalls();
-	
-	game.world.setBounds(0, mapHeight*-32, game.width, mapHeight*32);
 }
 
 function appendLayer(name) {
@@ -84,13 +82,11 @@ function appendLayer(name) {
 		var y1 = layerHeight - y + mapHeight - 1; // Y position adjusted for layer height and current map position
 		
 		for (var x=0; x < layer.layer.data[y].length; x++) {
-			if (!collision[y1]) collision[y1] = [];
 			if (layer.layer.data[y][x].index>0){
 				tiles.create(x*32, (y1+1)*-32, 'textures', layer.layer.data[y][x].index-1);
-				collision[y1][x] = 1
-			} else {
-				collision[y1][x] = 0
 			}
+			if (!collision[y1]) collision[y1] = [];
+			collision[y1][x] = layer.layer.data[y][x].properties.collision;
 		}
 	}
 	
@@ -105,7 +101,7 @@ function updateWalls() {
 	
 	for (var x=0; x<collision[0].length; x++) {
 		var string = null;
-		for (var y=0; y<collision.length; y++) {
+		for (var y=Math.max(0, collision.length-80); y<collision.length; y++) {
 			if (collision[y][x] == 1) {
 				if (string === null) string = y;
 			} else {
@@ -133,13 +129,23 @@ function updateWalls() {
 			string = null;
 		}
 	}
+	
+	game.world.setBounds(0, mapHeight*-32, game.width, Math.min(80*32, mapHeight*32));
+	
+	tiles.forEachAlive(function(obj){
+		if (obj.position.y > (mapHeight-80)*-32) obj.destroy();
+	}, this)
 }
 
 function create() {
 	"use strict";
 
 	game.world.setBounds(0, -1000, game.width, 1000);
-
+	
+	tiles = game.add.group();
+	walls = [];//game.add.physicsGroup();
+	collision = [];
+	
     player = game.add.sprite(game.width/2, -128, 'player');
     game.physics.arcade.enable(player);
     
@@ -148,13 +154,9 @@ function create() {
 
     //player.body.gravity.y = 3000;
 	player.animations.add('idle', [0,0,0,1,2,3,4], 5, true);
-	player.animations.add('walk', [5,6,7,8], 20, true);
+	player.animations.add('walk', [5,6,7,8], 10, true);
 	
     mapdata = game.add.tilemap('tiles');
-	
-	tiles = game.add.group();
-	walls = [];//game.add.physicsGroup();
-	collision = [];
 	
 	appendLayer('Tile Layer 1');
 	
