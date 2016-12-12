@@ -36,13 +36,13 @@ function preload() {
 }
 
 var player;
-var mapdata;
+var mapdata; // TileMap with map data
 var tiles; // All the tile images
 var collision; // Matrix holding collision data
 var walls; // Wall collision shapes
 
-var cursors;
-var jumpButton;
+var mapHeight = 0; // Current room height
+var layerCache = {};
 
 // Player physics and animation vars
 var runForce = 0;
@@ -51,13 +51,58 @@ var jumpType = 0;
 var jumpTimeout = 0;
 var facing = 0;
 
+var cursors;
 var downHeldLast = false;
 var leftHeldLast = false;
 var upHeldLast = false;
 var rightHeldLast = false;
 
+function appendMaxLayers() {
+	var any = false;
+	
+	while (mapHeight * -32 > player.body.y 	- game.height) {
+		appendLayer('seg1');
+		any = true;
+	}
+	
+	if (any) updateWalls();
+	
+	game.world.setBounds(0, mapHeight*-32, game.width, mapHeight*32);
+}
+
+function appendLayer(name) {
+	var layer = layerCache[name];
+	if (!layer) {
+		layer = mapdata.createLayer(name);
+		layer.exists = false;
+	}
+	console.log(layer);
+	
+	var layerHeight = layer.layer.properties.height;
+	
+	for (var y=0; y < layerHeight; y++) {
+		var y1 = layerHeight - y + mapHeight - 1; // Y position adjusted for layer height and current map position
+		
+		for (var x=0; x < layer.layer.data[y].length; x++) {
+			if (!collision[y1]) collision[y1] = [];
+			if (layer.layer.data[y][x].index>0){
+				tiles.create(x*32, (y1+1)*-32, 'textures', layer.layer.data[y][x].index-1);
+				collision[y1][x] = 1
+			} else {
+				collision[y1][x] = 0
+			}
+		}
+	}
+	
+	mapHeight += layerHeight;
+}
+
 function updateWalls() {
+	for (var i=0; i<walls.length; i++) {
+		walls[i].destroy();
+	}
 	walls = [];
+	
 	for (var x=0; x<collision[0].length; x++) {
 		var string = null;
 		for (var y=0; y<collision.length; y++) {
@@ -93,12 +138,10 @@ function updateWalls() {
 function create() {
 	"use strict";
 
-	game.world.setBounds(0, -1000, game.width, 2000);
+	game.world.setBounds(0, -1000, game.width, 1000);
 
-    player = game.add.sprite(100, -400, 'player');
+    player = game.add.sprite(game.width/2, -128, 'player');
     game.physics.arcade.enable(player);
-	
-	game.physics.arcade.TILE_BIAS = 40;
     
     player.body.setSize(40,40,10,0);
 	player.anchor.setTo(0.49, 0.5);
@@ -108,33 +151,16 @@ function create() {
 	player.animations.add('walk', [5,6,7,8], 20, true);
 	
     mapdata = game.add.tilemap('tiles');
-
-	var layer = mapdata.createLayer('Tile Layer 1')
-	layer.exists = false;
-	console.log(layer);
 	
 	tiles = game.add.group();
 	walls = [];//game.add.physicsGroup();
 	collision = [];
 	
-	var layerheight = layer.layer.properties.height;
-	
-	for (var y=0; y < layer.layer.data.length; y++) {
-		for (var x=0; x < layer.layer.data[y].length; x++) {
-			if (!collision[layerheight-y]) collision[layerheight-y] = [];
-			if (layer.layer.data[y][x].index>0){
-				tiles.create(x*32, (layerheight-y+1)*-32, 'textures', layer.layer.data[y][x].index-1);
-				collision[layerheight-y][x] = 1
-			} else {
-				collision[layerheight-y][x] = 0
-			}
-		}
-	}
+	appendLayer('Tile Layer 1');
 	
 	updateWalls();
 	
     cursors = game.input.keyboard.createCursorKeys();
-    jumpButton = cursors.up;
 }
 
 function update() {
@@ -248,6 +274,8 @@ function update() {
 	}
 	
 	game.camera.y += ((player.body.center.y - game.height/2) - game.camera.y) * 0.2;
+	
+	appendMaxLayers();
 }
 
 function render () {
