@@ -28,6 +28,7 @@ function preload() {
 
     game.load.spritesheet('player', 'dog.png', 64, 64);
     game.load.spritesheet('textures', 'terrain.png', 32, 32);
+    game.load.spritesheet('milestone', 'milestone.png', 800, 32);
 	game.load.tilemap('tiles', 'testmap.json', null, Phaser.Tilemap.TILED_JSON);
 	
 	//game.stage.scale = 2;
@@ -37,9 +38,10 @@ function preload() {
 
 var player;
 var mapdata; // TileMap with map data
-var tiles; // All the tile images
+var tiles = []; // Array of groups of all the tile images
 var collision; // Matrix holding collision data
 var walls; // Wall collision shapes
+var milestones; // Dashed lines every few blocks
 
 var mapHeight = 0; // Current room height
 var layerCache = {};
@@ -83,11 +85,24 @@ function appendLayer(name) {
 		
 		for (var x=0; x < layer.layer.data[y].length; x++) {
 			if (layer.layer.data[y][x].index>0){
-				tiles.create(x*32, (y1+1)*-32, 'textures', layer.layer.data[y][x].index-1);
+				tiles[layer.layer.data[y][x].properties.collision?1:0].create(x*32, (y1+1)*-32, 'textures', layer.layer.data[y][x].index-1);
 			}
 			if (!collision[y1]) collision[y1] = [];
 			collision[y1][x] = layer.layer.data[y][x].properties.collision;
 		}
+	}
+	
+	var milestoneSpacing = 100;
+	
+	var i = Math.ceil(mapHeight / milestoneSpacing);
+	while ( i < Math.ceil((mapHeight+layerHeight) / milestoneSpacing) ) {
+		var milestone = game.add.sprite(0, (i*milestoneSpacing+20)*-32, 'milestone');
+		milestone.animations.add('milestone', [0,1,2,3], 10, true);
+		milestone.animations.play('milestone');
+		
+		milestones.addChild(milestone);
+		
+		i++;
 	}
 	
 	mapHeight += layerHeight;
@@ -132,7 +147,11 @@ function updateWalls() {
 	
 	game.world.setBounds(0, mapHeight*-32, game.width, Math.min(80*32, mapHeight*32));
 	
-	tiles.forEachAlive(function(obj){
+	tiles[0].forEachAlive(function(obj){
+		if (obj.position.y > (mapHeight-80)*-32) obj.destroy();
+	}, this)
+	
+	tiles[1].forEachAlive(function(obj){
 		if (obj.position.y > (mapHeight-80)*-32) obj.destroy();
 	}, this)
 }
@@ -142,12 +161,16 @@ function create() {
 
 	game.world.setBounds(0, -1000, game.width, 1000);
 	
-	tiles = game.add.group();
+	tiles[0] = game.add.group();
 	walls = [];//game.add.physicsGroup();
 	collision = [];
 	
     player = game.add.sprite(game.width/2, -128, 'player');
     game.physics.arcade.enable(player);
+	
+	milestones = game.add.group();
+	
+	tiles[1] = game.add.group();
     
     player.body.setSize(40,40,10,0);
 	player.anchor.setTo(0.49, 0.5);
@@ -281,7 +304,6 @@ function update() {
 }
 
 function render () {
-	"use strict";
 }
 </script>
 
