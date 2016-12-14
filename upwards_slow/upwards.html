@@ -51,7 +51,9 @@ var maxTiles = 60
 var mapHeight = 0; // Current room height
 var maxPlayerHeight = 0; // Best player height
 var layerCache = {};
-var nextTileRemove = 100;
+var nextTileRemove = 0;
+
+var playerSpeed = 0.7;
 
 // Player physics and animation vars
 var runForce = 0;
@@ -59,6 +61,7 @@ var huggingWall = false;
 var jumpType = 0;
 var jumpTimeout = 0;
 var facing = 0;
+var consecJumps = 0;
 
 var cursors;
 var downHeldLast = false;
@@ -239,8 +242,8 @@ function update() {
 	//// Physics tick for player ////
 	// Get ready for the world's most confusing physics tick
 	
-    var vx = player.body.velocity.x;
-    var vy = player.body.velocity.y;
+    var vx = player.body.velocity.x / playerSpeed;
+    var vy = player.body.velocity.y / playerSpeed;
     
     var downHeld = cursors.down.isDown;
     var leftHeld = cursors.left.isDown;
@@ -258,57 +261,67 @@ function update() {
         huggingWall = (touchingLeft || touchingRight) && !touchingDown;
     
 	// run acceleration is proportional to runForce (slower accel in air)
-    var xSpeed = runForce * 40;
-    if (touchingDown) xSpeed = runForce*170;
+    var xSpeed = runForce * 40 * playerSpeed;
+    if (touchingDown) xSpeed = runForce*170 * playerSpeed;
 
     // runForce increases while running (faster in air)
     if (leftPressed || rightPressed || 
     (leftHeld && rightHeld)) runForce = 0;
-    else if (runForce < 2) runForce += (touchingDown ? 0.2 : 0.5);
+    else if (runForce < 2) runForce += (touchingDown ? 0.2 : 0.5) * playerSpeed;
 
     // Allow player to jump 10 frames after leaving ground
-    if (touchingDown || huggingWall) jumpTimeout = 10;
+    if (touchingDown || huggingWall) jumpTimeout = 10 / playerSpeed;
     else if (jumpTimeout > 0) jumpTimeout--;
 
     // jumpType sticks at last value until touching ground
-    if (touchingDown) jumpType = 0;
-    if (touchingLeft) jumpType = -1;
-    if (touchingRight) jumpType = 1;
+    if (touchingDown) jumpType = 0
+    if (touchingLeft) {
+		if (jumpType != -1) consecJumps = 0;
+		jumpType = -1;
+	}
+    if (touchingRight) {
+		if (jumpType != 1) consecJumps = 0;
+		jumpType = 1;
+	}
 
     // Keyboard input & walljumping
 	// Jump
     if (upHeld) {
-        if (vy < -2) vy -= 10;
+        vy -= 10 * playerSpeed;
         //Bounce on ground when holding up, not for walljump
         if (jumpTimeout > 0 && (upPressed || touchingDown)) {
             jumpTimeout = 0;
-            if (jumpType === 0) vy = -1000; // Normal jump
-            else                vy = Math.min(-500, vy - 900);//Walljump
+            if (jumpType === 0) {
+				vy = -1000; // Normal jump
+            } else {
+				consecJumps++;
+				vy = Math.min(-1000 / consecJumps, vy - 900);//Walljump
+			}
             if      (jumpType == -1) {vx = 800; facing = true;}
             else if (jumpType == 1) {vx = -800; facing = false;}
         }
     }
 	
-    if (downHeld) vy += 10;
+    if (downHeld) vy += 10 * playerSpeed;
 	
 	// Move left/right
     if (leftHeld && vx > -500) {vx -= xSpeed; facing = false;}
     if (rightHeld && vx < 500) {vx += xSpeed; facing = true;}
     
 	// Gravity
-    vy += 60;
+    vy += 60 * playerSpeed;
 
     // Friction
-    if (touchingDown) vx *= 0.8; 
-    else vx *= 0.99;
-    if (huggingWall) vy *= 0.9; 
-    else {vy *= 0.99;}
+    if (touchingDown) vx *= 1-(0.15 * playerSpeed); 
+    else vx *= 1-(0.01 * playerSpeed);
+    if (huggingWall) vy *= 1-(0.05 * playerSpeed); 
+    else {vy *= 1-(0.01*playerSpeed);}
 	
 	if (touchingLeft && !(rightHeld || upPressed)) vx = -1;
 	if (touchingRight && !(leftHeld || upPressed)) vx = 1;
     
-    player.body.velocity.x = vx;
-    player.body.velocity.y = vy;
+    player.body.velocity.x = vx * playerSpeed;
+    player.body.velocity.y = vy * playerSpeed;
 	
 	if (player.y < maxPlayerHeight) {
 		maxPlayerHeight = player.y;
@@ -360,26 +373,37 @@ function update() {
 		}
 	}, this);
 	
-	if (maxPlayerHeight < -20*32) {
-		if (nextTileRemove <= 0) {
+	if (player.body.y > (mapHeight-maxTiles)*-32) {
+		player.exists = false;
+		milenumbers.removeAll(true);
+	}
+	
+	decayMap();
+	appendMaxLayers();
+}
+
+function decayMap() {
+	var decayMultiplier = player.exists ? Math.floor((-20 - maxPlayerHeight/32)/100) + 1 : 10;
+	var dirty = false;
+	
+	if (nextTileRemove <= 0) {
+		for (i = 0; i < decayMultiplier; i++) {
 			var tile = tiles[Math.floor(Math.random()*1.2)].getRandom();
 			if (tile) {
-				if (collision[Math.floor(tile.y / -32) - 1][Math.floor(tile.x / 32)]) {
+				if (collision[Math.floor(tile.y / -32) - 1][Math.floor(tile.x / 32)]){
 					collision[Math.floor(tile.y / -32) - 1][Math.floor(tile.x / 32)] = false;
-					updateWalls();
+					dirty = true;
 				}
 				
 				tile.exists = false;
 				tile.destroy();
-				nextTileRemove = 10;
-				
-				
 			}
 		}
-		nextTileRemove--;
+		nextTileRemove = player.exists ? 10 : 1;
 	}
+	nextTileRemove--;
 	
-	appendMaxLayers();
+	if (dirty) updateWalls();
 }
 
 function render () {
