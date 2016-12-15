@@ -65,6 +65,8 @@ var facing = 0;
 var consecJumps = 0;
 
 var cursors;
+var wasd;
+var spacebar;
 var downHeldLast = false;
 var leftHeldLast = false;
 var upHeldLast = false;
@@ -231,6 +233,11 @@ function create() {
 	
 	if (!cursors) {
 		cursors = game.input.keyboard.createCursorKeys();
+		wasd = {w: game.input.keyboard.addKey(Phaser.Keyboard.W),
+		        a: game.input.keyboard.addKey(Phaser.Keyboard.A),
+				s: game.input.keyboard.addKey(Phaser.Keyboard.S),
+				d: game.input.keyboard.addKey(Phaser.Keyboard.D),}
+		spacebar = game.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR)
 		game.input.keyboard.addKey(Phaser.Keyboard.R).onDown.add(reset, this);
 	}
 }
@@ -246,10 +253,10 @@ function update() {
     var vx = player.body.velocity.x / playerSpeed;
     var vy = player.body.velocity.y / playerSpeed;
     
-    var downHeld = cursors.down.isDown;
-    var leftHeld = cursors.left.isDown;
-    var upHeld = cursors.up.isDown;
-    var rightHeld = cursors.right.isDown;
+    var downHeld = cursors.down.isDown || wasd.s.isDown;
+    var leftHeld = cursors.left.isDown || wasd.a.isDown;
+    var upHeld = cursors.up.isDown || wasd.w.isDown || spacebar.isDown;
+    var rightHeld = cursors.right.isDown || wasd.d.isDown;
     
     var downPressed = downHeld & !downHeldLast;
     var leftPressed = leftHeld & !leftHeldLast;
