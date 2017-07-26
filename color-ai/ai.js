@@ -14,6 +14,29 @@ function hsv2rgb(h, s, v) {
     return out;
 }
 
+class CanvasWrapper {
+    constructor() {
+        this.canvas = document.getElementById('world');
+        this.ctx = this.canvas.getContext('2d');
+        this.width = 300;
+        this.height = 150;
+        this.offsetx = this.width/2;
+        this.offsety = this.height/2;
+        this.scale = 1;
+    }
+    fill(color) {
+        this.ctx.fillStyle = `rgb(${Math.round(color[0]*255)},${Math.round(color[1]*255)},${Math.round(color[2]*255)})`;
+        this.ctx.fillRect(0,0,this.width,this.height);
+    }
+    fillCircle(color, radius, x, y) {
+        this.ctx.beginPath();
+        this.ctx.fillStyle = `rgb(${Math.round(color[0]*255)},${Math.round(color[1]*255)},${Math.round(color[2]*255)})`;
+        this.ctx.arc(this.offsetx+x, this.offsety-y, this.scale*radius, 0, Math.PI*2);
+        this.ctx.closePath();
+        this.ctx.fill();
+    }
+}
+
 class Board {
     constructor() {
         this.params = {
@@ -25,10 +48,10 @@ class Board {
         this.creatures = [];
     }
     
-    sense() {
-        return {r:0, g:0, b:0};
+    sense(creature, radius, rotate) {
+        var c = {r:0, g:0, b:0};
+        return {up:c, left:c, down:c, right:c, center:c};
     }
-    
     tick() {
         this.creatures.forEach(c=>c.think());
         this.creatures.forEach(c=>c.update());
@@ -46,6 +69,12 @@ class Board {
         }
         this.creatures = this.creatures.filter(c=>c.energy > 0);
     }
+    draw(canvas) {
+        canvas.fill([0.1,0.1,0.1]);
+        this.creatures.forEach(c=>{
+            c.draw(canvas);
+        })
+    }
 }
 
 class Thing {
@@ -61,10 +90,10 @@ class Thing {
         
         board.creatures.push(this);
     }
-    
     collide(other) {
         return false;
     }
+    draw() {}
 }
 
 class Creature extends Thing {
@@ -89,11 +118,11 @@ class Creature extends Thing {
       
         this.radius = Math.sqrt(this.energy);
         
-        this.color = hsv2rgb(this.thoughts.hue, this.thoughts.sat, this.thoughts.val);
+        this.color = hsv2rgb(this.thoughts.hue + this.type * 120, this.thoughts.sat, this.thoughts.val);
     }
     collide(other) {
         if (other instanceof Creature) {
-            if ((this.type - other.type) % 3 == 2) {
+            if ((this.type - other.type + 3) % 3 == 2) {
                 // Om nom nom
                 var amt = Math.min(other.energy, board.params.eatSpeed);
                 other.energy -= amt;
@@ -101,6 +130,9 @@ class Creature extends Thing {
                 return true;
             }
         }
+    }
+    draw(canvas) {
+        canvas.fillCircle(this.color, this.radius, this.x, this.y);
     }
 }
 
@@ -120,10 +152,23 @@ class DummyMind {
 
 var board;
 var creature;
+var canvas;
+var repeatingTick;
 
 function init() {
     board = new Board();
+    board.canvas = new CanvasWrapper();
     creature = newCreature(0, 0, 0);
+    canvas = new CanvasWrapper();
+}
+
+function tick() {
+    board.tick();
+    board.draw(canvas);
+}
+
+function tickinterval(period) {
+    return repeatingTick = setInterval(tick, period);
 }
 
 function newCreature(x, y, type) {
