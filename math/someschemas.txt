@@ -1,0 +1,20 @@
+transformation = {
+    antecedents: List of expressions (default: [])
+    consequents: List of expressions (default: [])
+    target: An expression (optional)
+    replacement: An expression (required if target is specified)
+    bidirectional: True/false (default: true)
+    variables: List of variable domain specifications (required if any variables are used)
+}
+
+expression = {
+    type: Operator name (plus, equals, variable, integer...),
+    sub: [Expression],
+    bind: [List of variables that this expression binds on subexpressions: {
+        var: Name of variable
+        domain: Domain of vaariable
+    }],
+    val: Extra for special types (variable name, integer value),
+}
+
+

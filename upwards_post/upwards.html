@@ -245,6 +245,9 @@ function create() {
 function update() {
 	"use strict";
 	
+	decayMap();
+	appendMaxLayers();
+	
 	game.physics.arcade.collide(player, walls);
 
 	//// Physics tick for player ////
@@ -385,9 +388,6 @@ function update() {
 		player.exists = false;
 		milenumbers.removeAll(true);
 	}
-	
-	decayMap();
-	appendMaxLayers();
 }
 
 function decayMap() {
