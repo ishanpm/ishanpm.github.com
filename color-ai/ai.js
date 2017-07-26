@@ -42,7 +42,8 @@ class Board {
         this.params = {
             creatureAwareness: 10,
             creatureSpeed: 1/20,
-            eatSpeed: 2,
+            movementCost: 0.2,
+            eatSpeed: 5,
             drag: 19/20
         }
         this.creatures = [];
@@ -59,7 +60,7 @@ class Board {
             var c1 = this.creatures[i];
             for (var k = i+1; k < this.creatures.length; k++) {
                 var c2 = this.creatures[k];
-                var dist = Math.sqrt(Math.pow(c1.x - c2.x,2) + Math.pow(c1.x - c2.x,2));
+                var dist = Math.sqrt(Math.pow(c1.x - c2.x,2) + Math.pow(c1.y - c2.y,2));
                 var collision = (dist < c1.radius + c2.radius);
                 
                 if (collision) {
@@ -160,6 +161,7 @@ function init() {
     board.canvas = new CanvasWrapper();
     creature = newCreature(0, 0, 0);
     canvas = new CanvasWrapper();
+    repeatingTick = setInterval(tick, 50);
 }
 
 function tick() {
@@ -167,13 +169,13 @@ function tick() {
     board.draw(canvas);
 }
 
-function tickinterval(period) {
-    return repeatingTick = setInterval(tick, period);
-}
-
 function newCreature(x, y, type) {
     return new Creature(board, x, y, new DummyMind(), type, 100);
 }
     
-
-
+function clickAdd() {
+    var x   =+document.getElementById("x").value,
+        y   =+document.getElementById("y").value,
+        type=+document.getElementById("type").value
+    newCreature(x, y, type);
+}
