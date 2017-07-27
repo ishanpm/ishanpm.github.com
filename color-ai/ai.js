@@ -7,6 +7,10 @@ function rotate3(list, amt) {
 }
 
 function hsv2rgb(h, s, v) {
+    if (h < 0) {
+        h = (h%360)+360
+    }
+    
     var fac = (h%120) / 60;
     var out = (fac < 1) ? [v, (1-(1-fac)*s)*v, (1-s)*v] : [(1-(fac-1)*s), v, (1-s)*v];
     out = rotate3(out, Math.floor(h%360 / 120));
@@ -18,15 +22,13 @@ class CanvasWrapper {
     constructor() {
         this.canvas = document.getElementById('world');
         this.ctx = this.canvas.getContext('2d');
-        this.width = 300;
-        this.height = 150;
-        this.offsetx = this.width/2;
-        this.offsety = this.height/2;
-        this.scale = 1;
         this.onClick = null;
         this.mouseOver = false;
         this.mousePos = [0,0];
         
+        this.updateMetrics();
+        
+        // Event listeners
         var that = this;
         
         this.canvas.addEventListener("click", function(e) {
@@ -52,6 +54,13 @@ class CanvasWrapper {
         this.canvas.addEventListener("mouseleave", function(e) {
             that.mouseOver = false;
         })
+    }
+    updateMetrics() {
+        this.width = this.canvas.offsetWidth;
+        this.height = this.canvas.offsetHeight;
+        this.offsetx = this.width/2;
+        this.offsety = this.height/2;
+        this.scale = 1;
     }
     // Coordinate transformations
     toScreenX(val) {return (this.offsetx + val) * this.scale}
@@ -89,6 +98,7 @@ class Board {
     }
     
     sense(creature, radius, rotate) {
+        
         var c = {r:0, g:0, b:0};
         return {up:c, left:c, down:c, right:c, center:c};
     }
@@ -198,10 +208,16 @@ class DummyMind {
 class FollowMind {
     constructor() {}
     think(energy, vx, vy, sensors, creature) {
+        var ax = 0, ay = 0;
+        
+        if (canvas.mouseOver) {
+            ax = canvas.mousePos[0] - creature.x;
+            ay = canvas.mousePos[1] - creature.y;
+        }
         return {
-            moveX: canvas.mousePos[0] - creature.x,
-            moveY: canvas.mousePos[1] - creature.y,
-            hue: 0,
+            moveX: ax,
+            moveY: ay,
+            hue: Math.atan2(ay, ax) * 180 / Math.PI,
             sat: 1,
             val: 1,
             respawn: 0
@@ -230,4 +246,5 @@ function init() {
 function tick() {
     board.tick();
     board.draw(canvas);
+    document.getElementById("energy-display").innerText = (board.creatures.reduce((s,c)=>s+c.energy, 0))
 }
