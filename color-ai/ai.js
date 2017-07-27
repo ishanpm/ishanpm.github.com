@@ -321,6 +321,14 @@ function init() {
         mind =  document.getElementById("mind").value;
         new Creature(board, x, y, minds[mind](), type, 100);
     }
+    
+    for(var i = 0; i < 100; i++) {
+        new Creature(board,
+                     Math.random()*800-400,
+                     Math.random()*800-400,
+                     minds.simple(),
+                     Math.floor(Math.random()*3), 100);
+    }
 }
 
 function tick() {
