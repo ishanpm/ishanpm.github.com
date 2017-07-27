@@ -1,5 +1,5 @@
 function rotate3(list, amt) {
-    switch (amt%3) {
+    switch ((amt+3)%3) {
         case 0: return list;
         case 1: return [list[2], list[0], list[1]];
         case 2: return [list[1], list[2], list[0]];
@@ -66,10 +66,10 @@ class CanvasWrapper {
     }
     // Coordinate transformations
     toScreenX(val) {return this.offsetx + val * this.scale}
-    toScreenY(val) {return this.offsety + val * this.scale}
+    toScreenY(val) {return this.offsety - val * this.scale}
     toScreenScale(val) {return val * this.scale}
     fromScreenX(val) {return (val - this.offsetx) / this.scale}
-    fromScreenY(val) {return (val - this.offsety) / this.scale}
+    fromScreenY(val) {return -(val - this.offsety) / this.scale}
     fromScreenScale(val) {return val / this.scale}
                           
     // Graphics
@@ -93,7 +93,7 @@ class CanvasWrapper {
     strokeRect(color, thickness, x, y, w, h) {
         this._setStroke(color);
         this.ctx.lineWidth = this.toScreenScale(thickness);
-        this.ctx.strokeRect(this.toScreenX(x), this.toScreenY(y), this.toScreenScale(w), this.toScreenScale(h));
+        this.ctx.strokeRect(this.toScreenX(x), this.toScreenY(y+h), this.toScreenScale(w), this.toScreenScale(h));
     }
 }
 
@@ -102,7 +102,7 @@ class Board {
         this.width = width;
         this.height = height;
         this.params = {
-            creatureAwareness: 10,
+            creatureAwareness: 100,
             creatureSpeed: 1/20,
             movementCost: 1/10000,
             eatSpeed: 5,
@@ -112,9 +112,34 @@ class Board {
     }
     
     sense(creature, radius, rotate) {
+        var out = [[0,0,0], [0,0,0], [0,0,0], [0,0,0], [0,0,0]];
+        this.creatures.forEach(c=>{
+            if (c === creature) return;
+            var dx = (c.x - creature.x),
+                dy = (c.y - creature.y),
+                dist = (dx*dx + dy*dy) / (radius*radius);
+            if (dist <= 1) {
+                var fac = c.energy * (1-dist);
+                // Angle, in quarters
+                var angle = Math.atan2(dy, dx) / (Math.PI/2);
+                if (angle < 0) angle += 4;
+                var first = Math.floor(angle);
+                var second = (first + 1) % 4;
+                var f2 = (angle % 1) * fac;
+                var f1 = fac - f2;
+                out[first][0] += c.color[0] * f1;
+                out[first][1] += c.color[1] * f1;
+                out[first][2] += c.color[2] * f1;
+                out[second][0] += c.color[0] * f2;
+                out[second][1] += c.color[1] * f2;
+                out[second][2] += c.color[2] * f2;
+            }
+        })
         
-        var c = {r:0, g:0, b:0};
-        return {up:c, left:c, down:c, right:c, center:c};
+        out[4] = creature.color.map(x=>x*creature.radius);
+        
+        out.forEach((e,i) => out[i]=rotate3(e, rotate));
+        return out;
     }
     tick() {
         this.creatures.forEach(c=>c.think());
@@ -138,7 +163,7 @@ class Board {
         this.creatures.forEach(c=>{
             c.draw(canvas);
         })
-        canvas.strokeRect([0.2, 0.2, 0.2], 5, -this.width/2, -this.height/2, this.width, this.height);
+        canvas.strokeRect([0.2, 0.2, 0.2], 10, -this.width/2, -this.height/2, this.width, this.height);
     }
 }
 
@@ -169,7 +194,7 @@ class Creature extends Thing {
         this.energy = energy;
     }
     think() {
-        var sensors = this.board.sense(this, this.board.params.creatureAwareness, this.type)
+        var sensors = this.board.sense(this, this.board.params.creatureAwareness, -this.type)
         this.thoughts = this.mind.think(this.energy, this.vx, this.vy, sensors, this);
         
         this.thoughts.moveX = +this.thoughts.moveX || 0;
@@ -247,7 +272,7 @@ class FollowMind {
         return {
             moveX: ax,
             moveY: ay,
-            hue: Math.atan2(ay, ax) * 180 / Math.PI,
+            hue: 0, //Math.atan2(ay, ax) * 180 / Math.PI,
             sat: 1,
             val: 1,
             split: (energy > 400 ? 1 : 0)
@@ -259,18 +284,34 @@ class FollowMind {
 }
 
 class SimpleMind {
-    constructor() {
-        
+    constructor() {}
+    think(energy, vx, vy, sensors, creature) {
+        var ax = sensors[2][1] + sensors[0][2] - sensors[0][1] - sensors[2][2],
+            ay = sensors[3][1] + sensors[1][2] - sensors[1][1] - sensors[3][2];
+        console.log(sensors[0][1], sensors[1][1], sensors[2][1], sensors[3][1])
+        return {
+            moveX: ax,
+            moveY: ay,
+            hue: 0,//Math.atan2(ay, ax) * 180 / Math.PI,
+            sat: 1,
+            val: 1,
+            split: 0//(energy > 400 ? 1 : 0)
+        }
+    }
+    newMind() {
+        return new SimpleMind();
     }
 }
 
 var board;
 var canvas;
 var repeatingTick;
-var minds = {dummy:_=>new DummyMind(), follow:_=>new FollowMind()}
+var minds = {dummy:_=>new DummyMind(), follow:_=>new FollowMind(), simple:_=>new SimpleMind()};
 
 function init() {
-    board = new Board(1000,1000);
+    board = new Board(800,800);
+    board.params.creatureAwareness = 200;
+    board.params.movementCost = 0;
     canvas = new CanvasWrapper();
     canvas.updateMetrics(board);
     repeatingTick = setInterval(tick, 50);
@@ -285,5 +326,6 @@ function init() {
 function tick() {
     board.tick();
     board.draw(canvas);
-    document.getElementById("energy-display").innerText = (board.creatures.reduce((s,c)=>s+c.energy, 0))
+    document.getElementById("energy-display").innerText = (board.creatures.reduce((s,c)=>s+c.energy, 0));
+    document.getElementById("count-display").innerText = (board.creatures.length)
 }
