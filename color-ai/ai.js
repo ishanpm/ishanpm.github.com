@@ -288,7 +288,6 @@ class SimpleMind {
     think(energy, vx, vy, sensors, creature) {
         var ax = sensors[2][1] + sensors[0][2] - sensors[0][1] - sensors[2][2],
             ay = sensors[3][1] + sensors[1][2] - sensors[1][1] - sensors[3][2];
-        console.log(sensors[0][1], sensors[1][1], sensors[2][1], sensors[3][1])
         return {
             moveX: ax,
             moveY: ay,
