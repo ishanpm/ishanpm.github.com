@@ -295,7 +295,7 @@ class SimpleMind {
             hue: 0,//Math.atan2(ay, ax) * 180 / Math.PI,
             sat: 1,
             val: 1,
-            split: 0//(energy > 400 ? 1 : 0)
+            split: window.enableSplit ? (energy > 400 ? 1 : 0) : 0
         }
     }
     newMind() {
@@ -321,6 +321,8 @@ function init() {
         mind =  document.getElementById("mind").value;
         new Creature(board, x, y, minds[mind](), type, 100);
     }
+    
+    window.enableSplit = true;
     
     for(var i = 0; i < 100; i++) {
         new Creature(board,
