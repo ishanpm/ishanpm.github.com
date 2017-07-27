@@ -1,2 +1,2 @@
-# ishanpm.github.com
+# ishanpm.github.io
 Maybe you want to check out my [LD37 game](/upwards), or its [post-competition version](/upwards_post)?
