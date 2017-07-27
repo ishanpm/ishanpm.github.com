@@ -55,38 +55,52 @@ class CanvasWrapper {
             that.mouseOver = false;
         })
     }
-    updateMetrics() {
+    updateMetrics(board) {
         this.width = this.canvas.offsetWidth;
         this.height = this.canvas.offsetHeight;
         this.offsetx = this.width/2;
         this.offsety = this.height/2;
-        this.scale = 1;
+        if (board) {
+            this.scale = Math.min(this.width / board.width, this.height / board.height);
+        }
     }
     // Coordinate transformations
-    toScreenX(val) {return (this.offsetx + val) * this.scale}
-    toScreenY(val) {return (this.offsety - val) * this.scale}
+    toScreenX(val) {return this.offsetx + val * this.scale}
+    toScreenY(val) {return this.offsety + val * this.scale}
     toScreenScale(val) {return val * this.scale}
-    fromScreenX(val) {return val / this.scale - this.offsetx}
-    fromScreenY(val) {return this.offsety - val / this.scale}
+    fromScreenX(val) {return (val - this.offsetx) / this.scale}
+    fromScreenY(val) {return (val - this.offsety) / this.scale}
     fromScreenScale(val) {return val / this.scale}
                           
     // Graphics
-    fill(color) {
+    _setFill(color) {
         this.ctx.fillStyle = `rgb(${Math.round(color[0]*255)},${Math.round(color[1]*255)},${Math.round(color[2]*255)})`;
+    }
+    _setStroke(color) {
+        this.ctx.strokeStyle = `rgb(${Math.round(color[0]*255)},${Math.round(color[1]*255)},${Math.round(color[2]*255)})`;
+    }
+    fill(color) {
+        this._setFill(color);
         this.ctx.fillRect(0,0,this.width,this.height);
     }
     fillCircle(color, radius, x, y) {
+        this._setFill(color);
         this.ctx.beginPath();
-        this.ctx.fillStyle = `rgb(${Math.round(color[0]*255)},${Math.round(color[1]*255)},${Math.round(color[2]*255)})`;
         this.ctx.arc(this.toScreenX(x), this.toScreenY(y), this.toScreenScale(radius), 0, Math.PI*2);
         this.ctx.closePath();
         this.ctx.fill();
     }
-    
+    strokeRect(color, thickness, x, y, w, h) {
+        this._setStroke(color);
+        this.ctx.lineWidth = this.toScreenScale(thickness);
+        this.ctx.strokeRect(this.toScreenX(x), this.toScreenY(y), this.toScreenScale(w), this.toScreenScale(h));
+    }
 }
 
 class Board {
-    constructor() {
+    constructor(width, height) {
+        this.width = width;
+        this.height = height;
         this.params = {
             creatureAwareness: 10,
             creatureSpeed: 1/20,
@@ -124,6 +138,7 @@ class Board {
         this.creatures.forEach(c=>{
             c.draw(canvas);
         })
+        canvas.strokeRect([0.2, 0.2, 0.2], 5, -this.width/2, -this.height/2, this.width, this.height);
     }
 }
 
@@ -168,16 +183,31 @@ class Creature extends Thing {
         this.vy += +this.thoughts.moveY * this.board.params.creatureSpeed;
         this.y += this.vy;
         this.vy *= this.board.params.drag;
+        
+        if (Math.abs(this.x) > board.width/2 - this.radius) {
+            this.x = Math.sign(this.x) * (board.width/2 - this.radius)
+            this.vx *= -1;
+        };
+        if (Math.abs(this.y) > board.height/2 - this.radius) {
+            this.y = Math.sign(this.y) * (board.height/2 - this.radius)
+            this.vy *= -1;
+        };
+        
+        this.energy -= (Math.pow(this.thoughts.moveX, 2) + Math.pow(this.thoughts.moveY, 2)) * this.board.params.movementCost
+        
+        if (this.thoughts.split >= 1) {
+            var offspring = new Creature(this.board, this.x, this.y, this.mind.newMind(), Math.floor(Math.random()*3));
+            offspring.energy = this.energy / 2;
+            this.energy /= 2;
+        }
       
         this.radius = Math.sqrt(this.energy);
         
         this.color = hsv2rgb(this.thoughts.hue + this.type * 120, this.thoughts.sat, this.thoughts.val);
-        
-        this.energy -= (Math.pow(this.thoughts.moveX, 2) + Math.pow(this.thoughts.moveY, 2)) * this.board.params.movementCost
     }
     collide(other) {
         if (other instanceof Creature) {
-            if ((this.type - other.type + 3) % 3 == 2) {
+            if ((this.type - other.type + 3) % 3 == 1) {
                 // Om nom nom
                 var amt = Math.min(other.energy, board.params.eatSpeed);
                 other.energy -= amt;
@@ -200,7 +230,7 @@ class DummyMind {
             hue: 0,
             sat: 1,
             val: 1,
-            respawn: 0
+            split: 0
         }
     }
 }
@@ -220,8 +250,17 @@ class FollowMind {
             hue: Math.atan2(ay, ax) * 180 / Math.PI,
             sat: 1,
             val: 1,
-            respawn: 0
+            split: (energy > 400 ? 1 : 0)
         }
+    }
+    newMind() {
+        return new DummyMind();
+    }
+}
+
+class SimpleMind {
+    constructor() {
+        
     }
 }
 
@@ -231,9 +270,9 @@ var repeatingTick;
 var minds = {dummy:_=>new DummyMind(), follow:_=>new FollowMind()}
 
 function init() {
-    board = new Board();
-    board.canvas = new CanvasWrapper();
+    board = new Board(1000,1000);
     canvas = new CanvasWrapper();
+    canvas.updateMetrics(board);
     repeatingTick = setInterval(tick, 50);
     
     canvas.onClick = function(x,y) {
