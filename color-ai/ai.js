@@ -275,7 +275,7 @@ class FollowMind {
             hue: 0, //Math.atan2(ay, ax) * 180 / Math.PI,
             sat: 1,
             val: 1,
-            split: (energy > 400 ? 1 : 0)
+            split: 0
         }
     }
     newMind() {
