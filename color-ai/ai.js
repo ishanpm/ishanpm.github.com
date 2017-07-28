@@ -118,7 +118,8 @@ class Board {
             hueCost:  0,//0.001/180,
             satCost:  0.02,
             valCost:  0.05,
-            existenceCost: 0.001,
+            existenceCost: 0.1,
+            sizeCost: 0.0001,
             limitHue: 180,
             limitSat: 0,
             limitVal: 0,
@@ -131,7 +132,7 @@ class Board {
             loop: true,
             circle: false,
             RPSMode: false,
-            RotatePerception: true
+            rotatePerception: true
         }
         this.creatures = [];
     }
@@ -142,7 +143,7 @@ class Board {
             if (c === creature) return;
             var dx = (c.x - creature.x),
                 dy = (c.y - creature.y);
-            if (this.params.loop) {
+            if (this.params.loop && !this.params.circle) {
                 if (Math.abs(dx) > this.width /2) dx -= this.width *Math.sign(dx);
                 if (Math.abs(dy) > this.height/2) dy -= this.height*Math.sign(dy);
             }
@@ -167,7 +168,9 @@ class Board {
         
         out[4] = creature.color.map(x=>x*creature.radius);
         
-        out.forEach((e,i) => out[i]=rotate3(e, rotate));
+        if (this.params.rotatePerception) {
+            out.forEach((e,i) => out[i]=rotate3(e, rotate));
+        }
         return out;
     }
     tick() {
@@ -320,12 +323,13 @@ class Creature extends Thing {
       
         this.radius = Math.sqrt(this.energy);
         
-        this.color = hsv2rgb(this.thoughts.hue + this.type * 120, this.thoughts.sat, this.thoughts.val);
+        this.color = hsv2rgb(this.thoughts.hue + (this.type * 120), this.thoughts.sat, this.thoughts.val);
     }
     getEnergyConsumption() {
         if (!this.thoughts) return this.board.params.existenceCost;
         
         var out = this.board.params.existenceCost;
+        out += this.board.params.sizeCost * this.energy;
         out += (Math.pow(this.thoughts.moveX, 2) + Math.pow(this.thoughts.moveY, 2)) * this.board.params.movementCost;
         out += (180-Math.abs(this.thoughts.hue - 180)) * board.params.hueCost;
         out += (1-this.thoughts.sat) * board.params.satCost;
@@ -369,7 +373,7 @@ class Creature extends Thing {
             var val = (4 - (bestNN - this.mind.iterations)) / 4;
             canvas.strokeRect([val,val,0], 2, this.x - this.radius-10, this.y - this.radius-10, this.radius*2+20, this.radius*2+20)
         }
-        if (this.lifespan-1 == bestLifespan) {
+        if (this.lifespan == bestLifespan) {
             canvas.strokeRect([0,1,1], 2, this.x - this.radius-15, this.y - this.radius-15, this.radius*2+30, this.radius*2+30)
         }
     }
@@ -478,7 +482,7 @@ class NeuralNetMind {
     }
     think(energy, x, y, vx, vy, sensors, creature) {
         var input = sensors.reduce((a,b)=>a.concat(b), []);
-        input = input.concat([energy, /*x, y,*/0, 0, vx, vy]);
+        input = input.concat([energy, x, y, vx, vy]);
         var out = this.net.exec(input);
         return {
             moveX: (out[0]-0.5)*creature.board.params.maxSpeed,
@@ -587,16 +591,23 @@ var minds = {dummy:_=>new DummyMind(),
              neural:_=>new NeuralNetMind(null, 1, board.creatures)};
 
 function init() {
-    board = new Board(1500,1500);
+    if (board) {
+        board.creatures = [];
+        board.time = 0;
+    } else {
+        board = new Board(1500,1500);
+    }
     canvas = new CanvasWrapper();
     canvas.updateMetrics(board);
+    
+    if (repeatingTick) {
+        clearInterval(repeatingTick);
+    }
     repeatingTick = setInterval(function () {
-        if (warpspeed>1) {
-            for (var i=0; i<warpspeed-1; i++) {
-                fasttick();
-            }
+        for (var i=0; i<warpspeed; i++) {
+            tick();
         }
-        tick();
+        posttick();
     }, 1);
     
     canvas.onClick = function(x,y) {
@@ -617,7 +628,7 @@ function init() {
     window.enableSplit = true;
 }
 
-function fasttick() {
+function tick() {
     board.tick();
     totalEnergy = board.creatures.reduce((s,c)=>s+(c.mind?c.energy:0), 0);
     while (totalEnergy < 20000) {
@@ -631,9 +642,7 @@ function fasttick() {
     }
 }
     
-function tick() {
-    fasttick();
-    if (!superfast) board.draw(canvas);
+function posttick() {
     var averageConsumption = board.creatures.reduce((s,c)=>s+(c.mind?c.getEnergyConsumption():0), 0) / board.creatures.length;
     bestNN = 0;
     bestLifespan = 0;
@@ -645,6 +654,9 @@ function tick() {
             bestLifespan = c.lifespan;
         }
     })
+    
+    if (!superfast) board.draw(canvas);
+    
     document.getElementById("time-display").innerText = (board.time);
     document.getElementById("energy-display").innerText = (totalEnergy);
     document.getElementById("consumption-display").innerText = (averageConsumption);
