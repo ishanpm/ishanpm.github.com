@@ -90,6 +90,14 @@ class CanvasWrapper {
         this.ctx.closePath();
         this.ctx.fill();
     }
+    strokeCircle(color, thickness, radius, x, y) {
+        this._setStroke(color);
+        this.ctx.lineWidth = this.toScreenScale(thickness);
+        this.ctx.beginPath();
+        this.ctx.arc(this.toScreenX(x), this.toScreenY(y), this.toScreenScale(radius), 0, Math.PI*2);
+        this.ctx.closePath();
+        this.ctx.stroke();
+    }
     strokeRect(color, thickness, x, y, w, h) {
         this._setStroke(color);
         this.ctx.lineWidth = this.toScreenScale(thickness);
@@ -99,15 +107,25 @@ class CanvasWrapper {
 
 class Board {
     constructor(width, height) {
+        this.time = 0;
         this.width = width;
         this.height = height;
         this.params = {
-            creatureAwareness: 100,
+            creatureAwareness: 200,
             creatureSpeed: 1/50,
-            movementCost: 1/10000,
+            maxSpeed: 300,
+            movementCost: 1/100000,
+            hueCost:  0.5/360,
+            satCost:  0.05,
+            valCost:  0.1,
+            limitHue: 90,
+            limitSat: 0.5,
+            limitVal: 0.2,
+            splitMin: 100,
             eatSpeed: 5,
             drag: 15/20,
-            loop: true
+            loop: false,
+            circle: true
         }
         this.creatures = [];
     }
@@ -147,6 +165,7 @@ class Board {
         return out;
     }
     tick() {
+        this.time += 1;
         this.creatures.forEach(c=>c.think());
         this.creatures.forEach(c=>c.update());
         for (var i = 0; i < this.creatures.length - 1; i++) {
@@ -165,10 +184,19 @@ class Board {
     }
     draw(canvas) {
         canvas.fill([0.1,0.1,0.1]);
+        if (!fast) {
+            this.creatures.forEach(c=>{
+                c.drawpre(canvas);
+            })
+        }
         this.creatures.forEach(c=>{
             c.draw(canvas);
         })
-        canvas.strokeRect([0.2, 0.2, 0.2], 10, -this.width/2, -this.height/2, this.width, this.height);
+        if (this.params.circle) {
+            canvas.strokeCircle([0.2, 0.2, 0.2], 10, this.width/2+5, 0, 0);
+        } else {
+            canvas.strokeRect([0.2, 0.2, 0.2], 10, -this.width/2-5, -this.height/2-5, this.width+10, this.height+10);
+        }
     }
 }
 
@@ -188,6 +216,7 @@ class Thing {
     collide(other) {
         return false;
     }
+    drawpre() {}
     draw() {}
 }
 
@@ -197,15 +226,30 @@ class Creature extends Thing {
         this.mind = mind;
         this.type = type;
         this.energy = energy;
+        this.lifespan = 0;
     }
     think() {
         var sensors = this.board.sense(this, this.board.params.creatureAwareness, -this.type)
-        this.thoughts = this.mind.think(this.energy, this.vx, this.vy, sensors, this);
+        this.thoughts = this.mind.think(this.energy, this.x, this.y, this.vx, this.vy, sensors, this);
         
         this.thoughts.moveX = +this.thoughts.moveX || 0;
         this.thoughts.moveY = +this.thoughts.moveY || 0;
+        
+        this.thoughts.hue = (this.thoughts.hue%360+360)%360 || 0;
+        
+        var maxspeed = this.board.params.maxSpeed;
+        
+        this.thoughts.moveX = Math.max(-maxspeed, Math.min(maxspeed, this.thoughts.moveX));
+        this.thoughts.moveY = Math.max(-maxspeed, Math.min(maxspeed, this.thoughts.moveY));
+        
+        this.thoughts.hue = Math.max(0, Math.min(this.board.params.limitHue*2, this.thoughts.hue+this.board.params.limitHue)) - this.board.params.limitHue;
+        this.thoughts.sat = Math.max(this.board.params.limitSat, Math.min(1, this.thoughts.sat));
+        this.thoughts.val = Math.max(this.board.params.limitVal, Math.min(1, this.thoughts.val));
+        
     }
     update() {
+        this.lifespan += 1;
+        
         this.vx += +this.thoughts.moveX * this.board.params.creatureSpeed;
         this.x += this.vx;
         this.vx *= this.board.params.drag;
@@ -214,23 +258,32 @@ class Creature extends Thing {
         this.y += this.vy;
         this.vy *= this.board.params.drag;
         
-        if (this.board.params.loop) {
-            if (Math.abs(this.x) > board.width/2)  this.x -= board.width  * Math.sign(this.x); 
-            if (Math.abs(this.y) > board.height/2) this.y -= board.height * Math.sign(this.y); 
+        if (this.board.params.circle) {
+            var rthis = Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
+            var rboard = this.board.width/2 - this.radius;
+            if (rthis > rboard) {
+                this.x *= (rboard / rthis);
+                this.y *= (rboard / rthis);
+            }
         } else {
-            if (Math.abs(this.x) > board.width/2 - this.radius) {
-                this.x = Math.sign(this.x) * (board.width/2 - this.radius)
-                this.vx *= -1;
-            };
-            if (Math.abs(this.y) > board.height/2 - this.radius) {
-                this.y = Math.sign(this.y) * (board.height/2 - this.radius)
-                this.vy *= -1;
-            };
+            if (this.board.params.loop) {
+                if (Math.abs(this.x) > board.width/2)  this.x -= board.width  * Math.sign(this.x); 
+                if (Math.abs(this.y) > board.height/2) this.y -= board.height * Math.sign(this.y); 
+            } else {
+                if (Math.abs(this.x) > board.width/2 - this.radius) {
+                    this.x = Math.sign(this.x) * (board.width/2 - this.radius)
+                    this.vx *= -1;
+                };
+                if (Math.abs(this.y) > board.height/2 - this.radius) {
+                    this.y = Math.sign(this.y) * (board.height/2 - this.radius)
+                    this.vy *= -1;
+                };
+            }
         }
         
-        this.energy -= (Math.pow(this.thoughts.moveX, 2) + Math.pow(this.thoughts.moveY, 2)) * this.board.params.movementCost
+        this.energy -= this.getEnergyConsumption();
         
-        if (this.thoughts.split >= 1) {
+        if (this.thoughts.split >= 1 && this.energy > this.board.params.splitMin) {
             var offspring = new Creature(this.board, this.x, this.y, this.mind.newMind(), Math.floor(Math.random()*3));
             offspring.energy = this.energy / 2;
             this.energy /= 2;
@@ -239,6 +292,17 @@ class Creature extends Thing {
         this.radius = Math.sqrt(this.energy);
         
         this.color = hsv2rgb(this.thoughts.hue + this.type * 120, this.thoughts.sat, this.thoughts.val);
+    }
+    getEnergyConsumption() {
+        if (!this.thoughts) return 0;
+        
+        var out = 0;
+        out += (Math.pow(this.thoughts.moveX, 2) + Math.pow(this.thoughts.moveY, 2)) * this.board.params.movementCost;
+        out += (180-Math.abs(this.thoughts.hue - 180)) * board.params.hueCost;
+        out += (1-this.thoughts.sat) * board.params.satCost;
+        out += (1-this.thoughts.val) * board.params.valCost;
+        
+        return out;
     }
     collide(other) {
         if (other instanceof Creature) {
@@ -251,14 +315,24 @@ class Creature extends Thing {
             }
         }
     }
+    drawpre(canvas) {
+        canvas.strokeCircle([[1,0,0],[0,1,0],[0,0,1]][this.type], 2, this.radius + 5, this.x, this.y);
+    }
     draw(canvas) {
+        if (this.mind.iterations && this.mind.iterations + 3 >= bestNN) {
+            var val = (10 - (bestNN - this.mind.iterations)) / 10;
+            canvas.strokeRect([val,val,0], 2, this.x - this.radius-10, this.y - this.radius-10, this.radius*2+20, this.radius*2+20)
+        }
+        if (this.lifespan-1 == bestLifespan) {
+            canvas.strokeRect([0,1,1], 2, this.x - this.radius-15, this.y - this.radius-15, this.radius*2+30, this.radius*2+30)
+        }
         canvas.fillCircle(this.color, this.radius, this.x, this.y);
     }
 }
 
 class DummyMind {
     constructor() {}
-    think(energy, vx, vy, sensors) {
+    think(energy, x, y, vx, vy, sensors) {
         return {
             moveX: 0,
             moveY: 0,
@@ -272,12 +346,12 @@ class DummyMind {
 
 class FollowMind {
     constructor() {}
-    think(energy, vx, vy, sensors, creature) {
+    think(energy, x, y, vx, vy, sensors, creature) {
         var ax = 0, ay = 0;
         
         if (canvas.mouseOver) {
-            ax = canvas.mousePos[0] - creature.x;
-            ay = canvas.mousePos[1] - creature.y;
+            ax = canvas.mousePos[0] - x;
+            ay = canvas.mousePos[1] - y;
         }
         return {
             moveX: ax,
@@ -295,12 +369,12 @@ class FollowMind {
 
 class SimpleMind {
     constructor() {}
-    think(energy, vx, vy, sensors, creature) {
+    think(energy, x, y, vx, vy, sensors, creature) {
         var ax = sensors[2][1] + sensors[0][2] - sensors[0][1] - sensors[2][2],
             ay = sensors[3][1] + sensors[1][2] - sensors[1][1] - sensors[3][2];
         return {
-            moveX: ax,
-            moveY: ay,
+            moveX: ax * 0.5,
+            moveY: ay * 0.5,
             hue: 0, //Math.atan2(ay, ax) * 180 / Math.PI,
             sat: 1,
             val: 1,
@@ -312,18 +386,146 @@ class SimpleMind {
     }
 }
 
+class NeuralNetMind {
+    constructor(net, iterations, creatures) {
+        this.iterations = iterations || 1;
+        if (!net) {
+            this.net = new NeuralNet(20, 12, 6, board);
+            // Reincarnation
+            if (creatures && creatures.length > 0) {
+                for (var i = 0; i < 10; i++) {
+                    var index = Math.floor(Math.random()*creatures.length);
+                    if (creatures[index].mind.net) {
+                        this.net.deserialize(creatures[index].mind.net.serialize());
+                        this.iterations = creatures[index].mind.iterations;
+                        this.net.mutate(20,0.5);
+                        i = 10;
+                    }
+                }
+            }
+        } else {
+            this.net = net;
+        }
+    }
+    think(energy, x, y, vx, vy, sensors, creature) {
+        var input = sensors.reduce((a,b)=>a.concat(b), []);
+        input = input.concat([energy, x, y, vx, vy]);
+        var out = this.net.exec(input);
+        return {
+            moveX: (out[0]-0.5)*creature.board.params.maxSpeed,
+            moveY: (out[1]-0.5)*creature.board.params.maxSpeed,
+            hue: out[2] * creature.board.params.limitHue, //Math.atan2(ay, ax) * 180 / Math.PI,
+            sat: out[3],
+            val: out[4],
+            split: out[5] + 0.5//window.enableSplit ? (energy > 400 ? 1 : 0) : 0
+        }
+                                
+    }
+    newMind() {
+        return new NeuralNetMind(this.net.clone().mutate(20, 0.5), this.iterations+1);
+    }
+}
+
+class NeuralNet {
+    constructor(l0, l1, l2) {
+        var rand = _=>(Math.random()*2-1);
+        
+        this.l0length = l0;
+        this.l1length = l1;
+        this.l2length = l2;
+        this.l1bias = new Array(l1).fill(0).map(a=>rand());
+        this.l1fac = new Array(l1).fill(0).map(a=>new Array(l0).fill(0).map(b=>rand()));
+        this.l2bias = new Array(l2).fill(0).map(a=>rand());
+        this.l2fac = new Array(l2).fill(0).map(a=>new Array(l1).fill(0).map(b=>rand()));
+    }
+    sig(x) {return 1/(1+Math.pow(Math.E,-x));}
+    exec(l0) {
+        var l1 = this.l1fac.map((e, i_l1)=>
+            this.sig(e.reduce((sum, fac, i_l0)=>
+                sum + fac*l0[i_l0]
+            , 0) + this.l1bias[i_l1]));
+        var l2 = this.l2fac.map((e, i_l2)=>
+            this.sig(e.reduce((sum, fac, i_l1)=>
+                sum + fac*l1[i_l1]
+            , 0) + this.l2bias[i_l2]));
+        
+        return l2;
+    }
+    clone() {
+        var out = new NeuralNet(0,0,0);
+        out.deserialize(this.serialize());
+        return out;
+    }
+    mutate(count, amt) {
+        var list = this.serialize();
+        var indexes = new Array(count).fill(0).map(a=>Math.floor(Math.random()*list[0].length));
+        indexes.forEach(i=>(list[0][i] += (Math.random()*2 - 1) * amt));
+        this.deserialize(list);
+    }
+    serialize() {
+        var out =        this.l1bias;
+        out = out.concat(this.l1fac.reduce((a,b)=>a.concat(b), []));
+        out = out.concat(this.l2bias);
+        out = out.concat(this.l2fac.reduce((a,b)=>a.concat(b), []));
+        return [out, this.l0length, this.l1length, this.l2length]
+    }
+    deserialize(list) {
+        this.l0length = list[1];
+        this.l1length = list[2];
+        this.l2length = list[3];
+        
+        var l0 = this.l0length,
+            l1 = this.l1length,
+            l2 = this.l2length;
+        
+        var i = 0;
+        for (var a=0; a<l1; a++, i++) {
+            this.l1bias[a] = list[0][i];
+        }
+        for (var a=0; a<l1; a++) {
+            this.l1fac[a] = [];
+            for (var b=0; b<l0; b++, i++) {
+                this.l1fac[a][b] = list[0][i];
+            }
+        }
+        for (var a=0; a<l2; a++, i++) {
+            this.l2bias[a] = list[0][i];
+        }
+        for (var a=0; a<l2; a++) {
+            this.l2fac[a] = [];
+            for (var b=0; b<l1; b++, i++) {
+                this.l2fac[a][b] = list[0][i];
+            }
+        }
+    }
+}
+
+var fast = false;
+var superfast = false;
+
 var board;
 var canvas;
 var repeatingTick;
-var minds = {dummy:_=>new DummyMind(), follow:_=>new FollowMind(), simple:_=>new SimpleMind()};
+var bestNN;
+var bestLifespan;
+var warpspeed=1;
+var minds = {dummy:_=>new DummyMind(),
+             follow:_=>new FollowMind(),
+             simple:_=>new SimpleMind(),
+             neural:_=>new NeuralNetMind(null, 1, board.creatures)};
 
 function init() {
-    board = new Board(800,800);
-    board.params.creatureAwareness = 200;
-    board.params.movementCost = 0;
+    board = new Board(1500,1500);
     canvas = new CanvasWrapper();
     canvas.updateMetrics(board);
-    repeatingTick = setInterval(tick, 20);
+    repeatingTick = setInterval(_=>{
+        if (warpspeed>1) {
+            for (var i=0; i<warpspeed-1; i++) {
+                board.tick();
+            }
+        }
+        tick()
+    }, 1);
     
     canvas.onClick = function(x,y) {
         type = +document.getElementById("type").value;
@@ -332,19 +534,37 @@ function init() {
     }
     
     window.enableSplit = true;
-    
-    for(var i = 0; i < 100; i++) {
-        new Creature(board,
-                     Math.random()*800-400,
-                     Math.random()*800-400,
-                     minds.simple(),
-                     Math.floor(Math.random()*3), 100);
-    }
 }
 
 function tick() {
     board.tick();
-    board.draw(canvas);
-    document.getElementById("energy-display").innerText = (board.creatures.reduce((s,c)=>s+c.energy, 0));
+    if (!superfast) board.draw(canvas);
+    var totalEnergy = board.creatures.reduce((s,c)=>s+c.energy, 0);
+    var averageConsumption = board.creatures.reduce((s,c)=>s+c.getEnergyConsumption(), 0) / board.creatures.length;
+    bestNN = 0;
+    bestLifespan = 0;
+    board.creatures.forEach(c=>{
+        if (c.mind.iterations > bestNN) {
+            bestNN = c.mind.iterations;
+        }
+        if (c.lifespan > bestLifespan) {
+            bestLifespan = c.lifespan;
+        }
+    })
+    document.getElementById("time-display").innerText = (board.time);
+    document.getElementById("energy-display").innerText = (totalEnergy);
+    document.getElementById("consumption-display").innerText = (averageConsumption);
     document.getElementById("count-display").innerText = (board.creatures.length)
+    document.getElementById("bestnn-display").innerText = (bestNN);
+    document.getElementById("bestlife-display").innerText = (bestLifespan);
+    
+    while (totalEnergy < 20000) {
+        new Creature(board,
+                     Math.random()*board.width-400,
+                     Math.random()*board.height-400,
+                     minds[(Math.random()<0.5 || bestNN == 0)?'neural':'neural'](),
+                     Math.floor(Math.random()*3),
+                     100);
+        totalEnergy += 100;
+    }
 }

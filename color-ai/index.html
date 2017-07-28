@@ -15,10 +15,24 @@
             <option>dummy</option>
             <option>follow</option>
             <option>simple</option>
+            <option>neural</option>
         </select>
         <br>
+        Time: <span id="time-display"></span> <br>
         Total energy: <span id="energy-display"></span> <br>
-        # Creatures: <span id="count-display"></span>
+        Average energy consumption: <span id="consumption-display"></span> / tick <br>
+        # Creatures: <span id="count-display"></span> <br>
+        Most NN splits: <span id="bestnn-display"></span> <br>
+        Longest lifespan: <span id="bestlife-display"></span> <br>
+        
+        <button onclick="fast = !fast">Toggle outlines</button>
+        <button onclick="superfast = !superfast">Toggle draw</button>
+        <br>
+        <button onclick="warpspeed=1">Warp=1</button>
+        <button onclick="warpspeed=10">Warp=10</button>
+        <button onclick="warpspeed=20">Warp=20</button>
+        <button onclick="warpspeed=50">Warp=50</button>
+        <button onclick="warpspeed=100">Warp=100</button>
     </body>
     <script>init()</script>
 </html>
