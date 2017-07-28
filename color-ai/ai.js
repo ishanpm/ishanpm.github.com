@@ -103,7 +103,7 @@ class Board {
         this.height = height;
         this.params = {
             creatureAwareness: 100,
-            creatureSpeed: 1/20,
+            creatureSpeed: 1/50,
             movementCost: 1/10000,
             eatSpeed: 5,
             drag: 15/20
@@ -291,7 +291,7 @@ class SimpleMind {
         return {
             moveX: ax,
             moveY: ay,
-            hue: 0,//Math.atan2(ay, ax) * 180 / Math.PI,
+            hue: 0, //Math.atan2(ay, ax) * 180 / Math.PI,
             sat: 1,
             val: 1,
             split: window.enableSplit ? (energy > 400 ? 1 : 0) : 0
@@ -313,7 +313,7 @@ function init() {
     board.params.movementCost = 0;
     canvas = new CanvasWrapper();
     canvas.updateMetrics(board);
-    repeatingTick = setInterval(tick, 50);
+    repeatingTick = setInterval(tick, 20);
     
     canvas.onClick = function(x,y) {
         type = +document.getElementById("type").value;
