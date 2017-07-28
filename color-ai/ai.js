@@ -114,18 +114,23 @@ class Board {
             creatureAwareness: 200,
             creatureSpeed: 1/50,
             maxSpeed: 300,
-            movementCost: 1/100000,
-            hueCost:  0.5/360,
-            satCost:  0.05,
-            valCost:  0.1,
-            limitHue: 90,
+            movementCost: 1/10000,
+            hueCost:  0,//0.001/180,
+            satCost:  0.02,
+            valCost:  0.05,
+            existenceCost: 0.001,
+            limitHue: 180,
             limitSat: 0.5,
-            limitVal: 0.2,
+            limitVal: 0.5,
             splitMin: 100,
+            splitMax: 500,
             eatSpeed: 5,
+            sizeAdvantage: 5/20,
+            normalizedEating: true,
             drag: 15/20,
             loop: false,
-            circle: true
+            circle: true,
+            RPSMode: false,
         }
         this.creatures = [];
     }
@@ -142,7 +147,7 @@ class Board {
                 if (dy > this.height/2) dy = this.height-dy;
             }
             if (dist <= 1) {
-                var fac = c.energy * (1-dist);
+                var fac = c.radius * (1-dist);
                 // Angle, in quarters
                 var angle = Math.atan2(dy, dx) / (Math.PI/2);
                 if (angle < 0) angle += 4;
@@ -168,15 +173,32 @@ class Board {
         this.time += 1;
         this.creatures.forEach(c=>c.think());
         this.creatures.forEach(c=>c.update());
-        for (var i = 0; i < this.creatures.length - 1; i++) {
-            var c1 = this.creatures[i];
-            for (var k = i+1; k < this.creatures.length; k++) {
-                var c2 = this.creatures[k];
-                var dist = Math.sqrt(Math.pow(c1.x - c2.x,2) + Math.pow(c1.y - c2.y,2));
-                var collision = (dist < c1.radius + c2.radius);
-                
-                if (collision) {
-                    c1.collide(c2) || c2.collide(c1)
+        if (this.params.normalizedEating) {
+            for (var i = 0; i < this.creatures.length; i++) {
+                var c1 = this.creatures[i];
+                var collisions = [];
+                for (var k = 0; k < this.creatures.length; k++) {
+                    var c2 = this.creatures[k];
+                    var dist = Math.sqrt(Math.pow(c1.x - c2.x,2) + Math.pow(c1.y - c2.y,2));
+                    var collision = (dist < c1.radius + c2.radius) && c1.type !== c2.type;
+
+                    if (collision) {
+                        collisions.push(c2);
+                    }
+                }
+                c1.collide(collisions);
+            }
+        } else {
+            for (var i = 0; i < this.creatures.length - 1; i++) {
+                var c1 = this.creatures[i];
+                for (var k = i+1; k < this.creatures.length; k++) {
+                    var c2 = this.creatures[k];
+                    var dist = Math.sqrt(Math.pow(c1.x - c2.x,2) + Math.pow(c1.y - c2.y,2));
+                    var collision = (dist < c1.radius + c2.radius);
+
+                    if (collision) {
+                        c1.collide(c2) || c2.collide(c1)
+                    }
                 }
             }
         }
@@ -242,9 +264,11 @@ class Creature extends Thing {
         this.thoughts.moveX = Math.max(-maxspeed, Math.min(maxspeed, this.thoughts.moveX));
         this.thoughts.moveY = Math.max(-maxspeed, Math.min(maxspeed, this.thoughts.moveY));
         
-        this.thoughts.hue = Math.max(0, Math.min(this.board.params.limitHue*2, this.thoughts.hue+this.board.params.limitHue)) - this.board.params.limitHue;
-        this.thoughts.sat = Math.max(this.board.params.limitSat, Math.min(1, this.thoughts.sat));
-        this.thoughts.val = Math.max(this.board.params.limitVal, Math.min(1, this.thoughts.val));
+        if (this.mind.net) {
+            this.thoughts.hue = Math.max(0, Math.min(this.board.params.limitHue*2, this.thoughts.hue+this.board.params.limitHue)) - this.board.params.limitHue;
+            this.thoughts.sat = Math.max(this.board.params.limitSat, Math.min(1, this.thoughts.sat));
+            this.thoughts.val = Math.max(this.board.params.limitVal, Math.min(1, this.thoughts.val));
+        }
         
     }
     update() {
@@ -283,8 +307,12 @@ class Creature extends Thing {
         
         this.energy -= this.getEnergyConsumption();
         
-        if (this.thoughts.split >= 1 && this.energy > this.board.params.splitMin) {
-            var offspring = new Creature(this.board, this.x, this.y, this.mind.newMind(), Math.floor(Math.random()*3));
+        if ((this.thoughts.split >= 1 && this.energy > this.board.params.splitMin) || this.energy > this.board.params.splitMax) {
+            var offspring = new Creature(this.board,
+                                         this.x,
+                                         this.y,
+                                         this.mind.newMind(),
+                                         this.type);
             offspring.energy = this.energy / 2;
             this.energy /= 2;
         }
@@ -294,9 +322,9 @@ class Creature extends Thing {
         this.color = hsv2rgb(this.thoughts.hue + this.type * 120, this.thoughts.sat, this.thoughts.val);
     }
     getEnergyConsumption() {
-        if (!this.thoughts) return 0;
+        if (!this.thoughts) return this.board.params.existenceCost;
         
-        var out = 0;
+        var out = this.board.params.existenceCost;
         out += (Math.pow(this.thoughts.moveX, 2) + Math.pow(this.thoughts.moveY, 2)) * this.board.params.movementCost;
         out += (180-Math.abs(this.thoughts.hue - 180)) * board.params.hueCost;
         out += (1-this.thoughts.sat) * board.params.satCost;
@@ -304,28 +332,47 @@ class Creature extends Thing {
         
         return out;
     }
-    collide(other) {
-        if (other instanceof Creature) {
-            if ((this.type - other.type + 3) % 3 == 1) {
-                // Om nom nom
-                var amt = Math.min(other.energy, board.params.eatSpeed);
-                other.energy -= amt;
-                this.energy += amt;
-                return true;
+    collide(list) {
+        var singleCollision = (other, speed) => {
+            if (other instanceof Creature) {
+                var canNom = false;
+                if (this.board.params.RPSMode){
+                    canNom = (((this.type - other.type + 3) % 3 == 1));
+                } else {
+                    canNom = (this.energy > other.energy) || this.board.params.normalizedEating;
+                }
+                
+                canNom &= !(this.mind instanceof FoodMind) 
+                canNom |= other.mind instanceof FoodMind
+                
+                if (canNom) {
+                    // Om nom nom
+                    var amt = speed;
+                    other.energy -= amt;
+                    this.energy += amt;
+                    return true;
+                }
             }
+            return false;
+        }
+        var s = this.board.params.eatSpeed + this.board.params.sizeAdvantage * this.radius;
+        if (this.board.params.normalizedEating) {
+            list.forEach(e=>singleCollision(e, s / list.length));
+        } else {
+            return singleCollision(list, s);
         }
     }
     drawpre(canvas) {
         canvas.strokeCircle([[1,0,0],[0,1,0],[0,0,1]][this.type], 2, this.radius + 5, this.x, this.y);
-    }
-    draw(canvas) {
-        if (this.mind.iterations && this.mind.iterations + 3 >= bestNN) {
-            var val = (10 - (bestNN - this.mind.iterations)) / 10;
+        if (false){//this.mind.iterations && this.mind.iterations + 3 >= bestNN) {
+            var val = (4 - (bestNN - this.mind.iterations)) / 4;
             canvas.strokeRect([val,val,0], 2, this.x - this.radius-10, this.y - this.radius-10, this.radius*2+20, this.radius*2+20)
         }
         if (this.lifespan-1 == bestLifespan) {
             canvas.strokeRect([0,1,1], 2, this.x - this.radius-15, this.y - this.radius-15, this.radius*2+30, this.radius*2+30)
         }
+    }
+    draw(canvas) {
         canvas.fillCircle(this.color, this.radius, this.x, this.y);
     }
 }
@@ -341,6 +388,26 @@ class DummyMind {
             val: 1,
             split: 0
         }
+    }
+    newMind() {
+        return new DummyMind();
+    }
+}
+
+class FoodMind {
+    constructor() {}
+    think(energy, x, y, vx, vy, sensors, creature) {
+        return {
+            moveX: 0,
+            moveY: 0,
+            hue: (creature.lifespan * 20)%360,
+            sat: 1,
+            val: 1,
+            split: 0
+        }
+    }
+    newMind() {
+        return new DummyMind();
     }
 }
 
@@ -512,6 +579,8 @@ var warpspeed=1;
 var minds = {dummy:_=>new DummyMind(),
              follow:_=>new FollowMind(),
              simple:_=>new SimpleMind(),
+             food:_=>new FoodMind(),
+             newNeural:_=>new NeuralNetMind(null, 1),
              neural:_=>new NeuralNetMind(null, 1, board.creatures)};
 
 function init() {
@@ -533,18 +602,27 @@ function init() {
         new Creature(board, x, y, minds[mind](), type, 100);
     }
     
+    for (var i=0; i<200; i++) {
+        new Creature(board,
+                     (Math.random()-0.5)*board.width,
+                     (Math.random()-0.5)*board.height,
+                     minds['newNeural'](),
+                     Math.floor(Math.random()*3),
+                     100);
+    }
+    
     window.enableSplit = true;
 }
 
 function tick() {
     board.tick();
     if (!superfast) board.draw(canvas);
-    var totalEnergy = board.creatures.reduce((s,c)=>s+c.energy, 0);
-    var averageConsumption = board.creatures.reduce((s,c)=>s+c.getEnergyConsumption(), 0) / board.creatures.length;
+    var totalEnergy = board.creatures.reduce((s,c)=>s+(c.mind?c.energy:0), 0);
+    var averageConsumption = board.creatures.reduce((s,c)=>s+(c.mind?c.getEnergyConsumption():0), 0) / board.creatures.length;
     bestNN = 0;
     bestLifespan = 0;
     board.creatures.forEach(c=>{
-        if (c.mind.iterations > bestNN) {
+        if (c.mind && c.mind.iterations > bestNN) {
             bestNN = c.mind.iterations;
         }
         if (c.lifespan > bestLifespan) {
@@ -560,9 +638,9 @@ function tick() {
     
     while (totalEnergy < 20000) {
         new Creature(board,
-                     Math.random()*board.width-400,
-                     Math.random()*board.height-400,
-                     minds[(Math.random()<0.5 || bestNN == 0)?'neural':'neural'](),
+                     (Math.random()-0.5)*board.width*0.7,
+                     (Math.random()-0.5)*board.height*0.7,
+                     minds[(Math.random()<0.05)?'food':'neural'](),
                      Math.floor(Math.random()*3),
                      100);
         totalEnergy += 100;
