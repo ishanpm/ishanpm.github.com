@@ -106,7 +106,8 @@ class Board {
             creatureSpeed: 1/50,
             movementCost: 1/10000,
             eatSpeed: 5,
-            drag: 15/20
+            drag: 15/20,
+            loop: true
         }
         this.creatures = [];
     }
@@ -118,6 +119,10 @@ class Board {
             var dx = (c.x - creature.x),
                 dy = (c.y - creature.y),
                 dist = (dx*dx + dy*dy) / (radius*radius);
+            if (this.params.loop) {
+                if (dx > this.width /2) dx = this.width -dx;
+                if (dy > this.height/2) dy = this.height-dy;
+            }
             if (dist <= 1) {
                 var fac = c.energy * (1-dist);
                 // Angle, in quarters
@@ -209,14 +214,19 @@ class Creature extends Thing {
         this.y += this.vy;
         this.vy *= this.board.params.drag;
         
-        if (Math.abs(this.x) > board.width/2 - this.radius) {
-            this.x = Math.sign(this.x) * (board.width/2 - this.radius)
-            this.vx *= -1;
-        };
-        if (Math.abs(this.y) > board.height/2 - this.radius) {
-            this.y = Math.sign(this.y) * (board.height/2 - this.radius)
-            this.vy *= -1;
-        };
+        if (this.board.params.loop) {
+            if (Math.abs(this.x) > board.width/2)  this.x -= board.width  * Math.sign(this.x); 
+            if (Math.abs(this.y) > board.height/2) this.y -= board.height * Math.sign(this.y); 
+        } else {
+            if (Math.abs(this.x) > board.width/2 - this.radius) {
+                this.x = Math.sign(this.x) * (board.width/2 - this.radius)
+                this.vx *= -1;
+            };
+            if (Math.abs(this.y) > board.height/2 - this.radius) {
+                this.y = Math.sign(this.y) * (board.height/2 - this.radius)
+                this.vy *= -1;
+            };
+        }
         
         this.energy -= (Math.pow(this.thoughts.moveX, 2) + Math.pow(this.thoughts.moveY, 2)) * this.board.params.movementCost
         
