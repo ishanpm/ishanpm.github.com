@@ -120,17 +120,18 @@ class Board {
             valCost:  0.05,
             existenceCost: 0.001,
             limitHue: 180,
-            limitSat: 0.5,
-            limitVal: 0.5,
+            limitSat: 0,
+            limitVal: 0,
             splitMin: 100,
             splitMax: 500,
             eatSpeed: 5,
             sizeAdvantage: 5/20,
             normalizedEating: true,
             drag: 15/20,
-            loop: false,
-            circle: true,
+            loop: true,
+            circle: false,
             RPSMode: false,
+            RotatePerception: true
         }
         this.creatures = [];
     }
@@ -342,8 +343,8 @@ class Creature extends Thing {
                     canNom = (this.energy > other.energy) || this.board.params.normalizedEating;
                 }
                 
-                canNom &= !(this.mind instanceof FoodMind) 
-                canNom |= other.mind instanceof FoodMind
+                canNom |= other.type == 3;
+                canNom &= (this.type != 3);
                 
                 if (canNom) {
                     // Om nom nom
@@ -363,7 +364,7 @@ class Creature extends Thing {
         }
     }
     drawpre(canvas) {
-        canvas.strokeCircle([[1,0,0],[0,1,0],[0,0,1]][this.type], 2, this.radius + 5, this.x, this.y);
+        canvas.strokeCircle([[1,0,0],[0,1,0],[0,0,1],[1,1,1]][this.type], 2, this.radius + 5, this.x, this.y);
         if (false){//this.mind.iterations && this.mind.iterations + 3 >= bestNN) {
             var val = (4 - (bestNN - this.mind.iterations)) / 4;
             canvas.strokeRect([val,val,0], 2, this.x - this.radius-10, this.y - this.radius-10, this.radius*2+20, this.radius*2+20)
@@ -397,6 +398,7 @@ class DummyMind {
 class FoodMind {
     constructor() {}
     think(energy, x, y, vx, vy, sensors, creature) {
+        creature.type = 3;
         return {
             moveX: 0,
             moveY: 0,
@@ -407,7 +409,7 @@ class FoodMind {
         }
     }
     newMind() {
-        return new DummyMind();
+        return new FoodMind();
     }
 }
 
@@ -440,8 +442,8 @@ class SimpleMind {
         var ax = sensors[2][1] + sensors[0][2] - sensors[0][1] - sensors[2][2],
             ay = sensors[3][1] + sensors[1][2] - sensors[1][1] - sensors[3][2];
         return {
-            moveX: ax * 0.5,
-            moveY: ay * 0.5,
+            moveX: ax,
+            moveY: ay,
             hue: 0, //Math.atan2(ay, ax) * 180 / Math.PI,
             sat: 1,
             val: 1,
@@ -464,7 +466,7 @@ class NeuralNetMind {
                     var index = Math.floor(Math.random()*creatures.length);
                     if (creatures[index].mind.net) {
                         this.net.deserialize(creatures[index].mind.net.serialize());
-                        this.iterations = creatures[index].mind.iterations;
+                        this.iterations = creatures[index].mind.iterations + 1;
                         this.net.mutate(20,0.5);
                         i = 10;
                     }
@@ -573,6 +575,7 @@ var superfast = false;
 var board;
 var canvas;
 var repeatingTick;
+var totalEnergy;
 var bestNN;
 var bestLifespan;
 var warpspeed=1;
@@ -587,13 +590,13 @@ function init() {
     board = new Board(1500,1500);
     canvas = new CanvasWrapper();
     canvas.updateMetrics(board);
-    repeatingTick = setInterval(_=>{
+    repeatingTick = setInterval(function () {
         if (warpspeed>1) {
             for (var i=0; i<warpspeed-1; i++) {
-                board.tick();
+                fasttick();
             }
         }
-        tick()
+        tick();
     }, 1);
     
     canvas.onClick = function(x,y) {
@@ -614,10 +617,23 @@ function init() {
     window.enableSplit = true;
 }
 
-function tick() {
+function fasttick() {
     board.tick();
+    totalEnergy = board.creatures.reduce((s,c)=>s+(c.mind?c.energy:0), 0);
+    while (totalEnergy < 20000) {
+        new Creature(board,
+                     (Math.random()-0.5)*board.width*0.7,
+                     (Math.random()-0.5)*board.height*0.7,
+                     minds[(Math.random()<0.05)?'food':'neural'](),
+                     Math.floor(Math.random()*3),
+                     100);
+        totalEnergy += 100;
+    }
+}
+    
+function tick() {
+    fasttick();
     if (!superfast) board.draw(canvas);
-    var totalEnergy = board.creatures.reduce((s,c)=>s+(c.mind?c.energy:0), 0);
     var averageConsumption = board.creatures.reduce((s,c)=>s+(c.mind?c.getEnergyConsumption():0), 0) / board.creatures.length;
     bestNN = 0;
     bestLifespan = 0;
@@ -635,14 +651,4 @@ function tick() {
     document.getElementById("count-display").innerText = (board.creatures.length)
     document.getElementById("bestnn-display").innerText = (bestNN);
     document.getElementById("bestlife-display").innerText = (bestLifespan);
-    
-    while (totalEnergy < 20000) {
-        new Creature(board,
-                     (Math.random()-0.5)*board.width*0.7,
-                     (Math.random()-0.5)*board.height*0.7,
-                     minds[(Math.random()<0.05)?'food':'neural'](),
-                     Math.floor(Math.random()*3),
-                     100);
-        totalEnergy += 100;
-    }
 }
