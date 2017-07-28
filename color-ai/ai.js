@@ -141,12 +141,12 @@ class Board {
         this.creatures.forEach(c=>{
             if (c === creature) return;
             var dx = (c.x - creature.x),
-                dy = (c.y - creature.y),
-                dist = (dx*dx + dy*dy) / (radius*radius);
+                dy = (c.y - creature.y);
             if (this.params.loop) {
-                if (dx > this.width /2) dx = this.width -dx;
-                if (dy > this.height/2) dy = this.height-dy;
+                if (Math.abs(dx) > this.width /2) dx -= this.width *Math.sign(dx);
+                if (Math.abs(dy) > this.height/2) dy -= this.height*Math.sign(dy);
             }
+            var dist = (dx*dx + dy*dy) / (radius*radius);
             if (dist <= 1) {
                 var fac = c.radius * (1-dist);
                 // Angle, in quarters
@@ -478,7 +478,7 @@ class NeuralNetMind {
     }
     think(energy, x, y, vx, vy, sensors, creature) {
         var input = sensors.reduce((a,b)=>a.concat(b), []);
-        input = input.concat([energy, x, y, vx, vy]);
+        input = input.concat([energy, /*x, y,*/0, 0, vx, vy]);
         var out = this.net.exec(input);
         return {
             moveX: (out[0]-0.5)*creature.board.params.maxSpeed,
