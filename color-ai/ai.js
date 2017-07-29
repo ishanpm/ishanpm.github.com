@@ -140,15 +140,19 @@ class Board {
     
     sense(creature, radius, rotate) {
         var out = [[0,0,0], [0,0,0], [0,0,0], [0,0,0], [0,0,0]];
-        this.creatures.forEach(c=>{
-            if (c === creature) return;
+        var rsquared = radius*radius;
+        
+        for (var i=this.creatures.length-1; i>=0; i--) {
+            var c = this.creatures[i];
+            if (c === creature) continue;
             var dx = (c.x - creature.x),
                 dy = (c.y - creature.y);
             if (this.params.loop && !this.params.circle) {
                 if (Math.abs(dx) > this.width /2) dx -= this.width *Math.sign(dx);
                 if (Math.abs(dy) > this.height/2) dy -= this.height*Math.sign(dy);
             }
-            var dist = (dx*dx + dy*dy) / (radius*radius);
+            if (dx>radius || dy>radius || dx<-radius || dy<-radius) continue;
+            var dist = (dx*dx+dy*dy) / (rsquared);
             if (dist <= 1) {
                 var fac = c.radius * (1-dist);
                 // Angle, in quarters
@@ -165,7 +169,7 @@ class Board {
                 out[second][1] += c.color[1] * f2;
                 out[second][2] += c.color[2] * f2;
             }
-        })
+        }
         
         out[4] = creature.color.map(x=>x*creature.radius);
         
@@ -243,8 +247,30 @@ class Thing {
     collide(other) {
         return false;
     }
-    drawpre() {}
-    draw() {}
+    think() {}
+    update() {}
+    drawpre(canvas) {}
+    draw(canvas) {
+        canvas.fillCircle(this.color, this.radius, this.x, this.y);
+    }
+}
+
+class FoodPellet extends Thing {
+    constructor(board, x, y, energy) {
+        super(board, x, y)
+        this.energy = energy;
+        this.lifespan = 0;
+    }
+    
+    update() {
+        this.lifespan += 1;
+        this.color = hsv2rgb(this.lifespan*10, 1, 1);
+        this.radius= Math.sqrt(this.energy);
+    }
+    
+    drawpre(canvas) {
+        canvas.strokeCircle([1,1,1], 2, this.radius + 5, this.x, this.y);
+    }
 }
 
 class Creature extends Thing {
@@ -340,7 +366,7 @@ class Creature extends Thing {
     }
     collide(list) {
         var singleCollision = (other, speed) => {
-            if (other instanceof Creature) {
+            if (other instanceof Creature || other instanceof FoodPellet) {
                 var canNom = false;
                 if (this.board.params.RPSMode){
                     canNom = (((this.type - other.type + 3) % 3 == 1));
@@ -348,8 +374,7 @@ class Creature extends Thing {
                     canNom = (this.energy > other.energy) || this.board.params.normalizedEating;
                 }
                 
-                canNom |= other.type == 3;
-                canNom &= (this.type != 3);
+                canNom |= other instanceof FoodPellet;
                 
                 if (canNom) {
                     // Om nom nom
@@ -369,7 +394,7 @@ class Creature extends Thing {
         }
     }
     drawpre(canvas) {
-        canvas.strokeCircle([[1,0,0],[0,1,0],[0,0,1],[1,1,1]][this.type], 2, this.radius + 5, this.x, this.y);
+        canvas.strokeCircle([[1,0,0],[0,1,0],[0,0,1]][this.type], 2, this.radius + 5, this.x, this.y);
         if (false){//this.mind.iterations && this.mind.iterations + 3 >= bestNN) {
             var val = (4 - (bestNN - this.mind.iterations)) / 4;
             canvas.strokeRect([val,val,0], 2, this.x - this.radius-10, this.y - this.radius-10, this.radius*2+20, this.radius*2+20)
@@ -377,9 +402,6 @@ class Creature extends Thing {
         if (this.lifespan == bestLifespan) {
             canvas.strokeRect([0,1,1], 2, this.x - this.radius-15, this.y - this.radius-15, this.radius*2+30, this.radius*2+30)
         }
-    }
-    draw(canvas) {
-        canvas.fillCircle(this.color, this.radius, this.x, this.y);
     }
 }
 
@@ -397,24 +419,6 @@ class DummyMind {
     }
     newMind() {
         return new DummyMind();
-    }
-}
-
-class FoodMind {
-    constructor() {}
-    think(energy, x, y, vx, vy, sensors, creature) {
-        creature.type = 3;
-        return {
-            moveX: 0,
-            moveY: 0,
-            hue: (creature.lifespan * 20)%360,
-            sat: 1,
-            val: 1,
-            split: 0
-        }
-    }
-    newMind() {
-        return new FoodMind();
     }
 }
 
@@ -469,11 +473,11 @@ class NeuralNetMind {
             if (creatures && creatures.length > 0) {
                 for (var i = 0; i < 20; i++) {
                     var index = Math.floor(Math.random()*creatures.length);
-                    if (creatures[index].mind.net && (type == -1 || creatures[index].type == type)) {
+                    if (creatures[index].mind && creatures[index].mind.net && (type == -1 || creatures[index].type == type)) {
                         this.net.deserialize(creatures[index].mind.net.serialize());
                         this.iterations = creatures[index].mind.iterations + 1;
                         this.net.mutate(20,0.5);
-                        i = 10;
+                        i = 20;
                     }
                 }
             }
@@ -514,15 +518,22 @@ class NeuralNet {
     }
     sig(x) {return 1/(1+Math.pow(Math.E,-x));}
     exec(l0) {
-        var l1 = this.l1fac.map((e, i_l1)=>
-            this.sig(e.reduce((sum, fac, i_l0)=>
-                sum + fac*l0[i_l0]
-            , 0) + this.l1bias[i_l1]));
-        var l2 = this.l2fac.map((e, i_l2)=>
-            this.sig(e.reduce((sum, fac, i_l1)=>
-                sum + fac*l1[i_l1]
-            , 0) + this.l2bias[i_l2]));
-        
+        var l1 = [];
+        for (var i_l1=0; i_l1<this.l1length; i_l1++) {
+            l1[i_l1] = this.l1bias[i_l1];
+            for (var i_l0=0; i_l0<this.l0length; i_l0++) {
+                l1[i_l1] += l0[i_l0] * this.l1fac[i_l1][i_l0];
+            }
+            l1[i_l1] = this.sig(l1[i_l1]);
+        }
+        var l2 = [];
+        for (var i_l2=0; i_l2<this.l2length; i_l2++) {
+            l2[i_l2] = this.l2bias[i_l2];
+            for (var i_l1=0; i_l1<this.l1length; i_l1++) {
+                l1[i_l2] += l1[i_l1] * this.l2fac[i_l2][i_l1];
+            }
+            l2[i_l2] = this.sig(l2[i_l2]);
+        }
         return l2;
     }
     clone() {
@@ -591,6 +602,15 @@ var minds = {dummy:_=>new DummyMind(),
              newNeural:_=>new NeuralNetMind(null, 1),
              neural:type=>new NeuralNetMind(null, 1, board.creatures, (board.params.separateGenomes ? type : -1))};
 
+function newObject(objType, board, x, y, type, energy) {
+    if (objType == 'food') {
+        return new FoodPellet(board, x, y, energy)
+    } else {
+        return new Creature(board, x, y, minds[objType](type), type, energy);
+    }  
+}
+
+
 function init() {
     if (board) {
         board.creatures = [];
@@ -630,17 +650,18 @@ function init() {
     window.enableSplit = true;
 }
 
+
 function tick() {
     board.tick();
-    totalEnergy = board.creatures.reduce((s,c)=>s+(c.mind?c.energy:0), 0);
+    totalEnergy = board.creatures.reduce((s,c)=>s+(c.energy), 0);
     while (totalEnergy < 20000) {
         var type = Math.floor(Math.random()*3)
-        new Creature(board,
-                     (Math.random()-0.5)*board.width*0.7,
-                     (Math.random()-0.5)*board.height*0.7,
-                     minds[(Math.random()<0.05)?'food':'neural'](type),
-                     type,
-                     100);
+        newObject((Math.random()<0.05)?'food':'neural',
+                  board,
+                  (Math.random()-0.5)*board.width*0.7,
+                  (Math.random()-0.5)*board.height*0.7,
+                  type,
+                  100);
         totalEnergy += 100;
     }
 }
