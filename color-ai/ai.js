@@ -132,7 +132,8 @@ class Board {
             loop: true,
             circle: false,
             RPSMode: false,
-            rotatePerception: true
+            rotatePerception: true,
+            separateGenomes: true
         }
         this.creatures = [];
     }
@@ -460,15 +461,15 @@ class SimpleMind {
 }
 
 class NeuralNetMind {
-    constructor(net, iterations, creatures) {
+    constructor(net, iterations, creatures, type) {
         this.iterations = iterations || 1;
         if (!net) {
             this.net = new NeuralNet(20, 12, 6, board);
             // Reincarnation
             if (creatures && creatures.length > 0) {
-                for (var i = 0; i < 10; i++) {
+                for (var i = 0; i < 20; i++) {
                     var index = Math.floor(Math.random()*creatures.length);
-                    if (creatures[index].mind.net) {
+                    if (creatures[index].mind.net && (type == -1 || creatures[index].type == type)) {
                         this.net.deserialize(creatures[index].mind.net.serialize());
                         this.iterations = creatures[index].mind.iterations + 1;
                         this.net.mutate(20,0.5);
@@ -588,7 +589,7 @@ var minds = {dummy:_=>new DummyMind(),
              simple:_=>new SimpleMind(),
              food:_=>new FoodMind(),
              newNeural:_=>new NeuralNetMind(null, 1),
-             neural:_=>new NeuralNetMind(null, 1, board.creatures)};
+             neural:type=>new NeuralNetMind(null, 1, board.creatures, (board.params.separateGenomes ? type : -1))};
 
 function init() {
     if (board) {
@@ -617,11 +618,12 @@ function init() {
     }
     
     for (var i=0; i<200; i++) {
+        var type = Math.floor(Math.random()*3)
         new Creature(board,
                      (Math.random()-0.5)*board.width,
                      (Math.random()-0.5)*board.height,
-                     minds['newNeural'](),
-                     Math.floor(Math.random()*3),
+                     minds['newNeural'](type),
+                     type,
                      100);
     }
     
@@ -632,11 +634,12 @@ function tick() {
     board.tick();
     totalEnergy = board.creatures.reduce((s,c)=>s+(c.mind?c.energy:0), 0);
     while (totalEnergy < 20000) {
+        var type = Math.floor(Math.random()*3)
         new Creature(board,
                      (Math.random()-0.5)*board.width*0.7,
                      (Math.random()-0.5)*board.height*0.7,
-                     minds[(Math.random()<0.05)?'food':'neural'](),
-                     Math.floor(Math.random()*3),
+                     minds[(Math.random()<0.05)?'food':'neural'](type),
+                     type,
                      100);
         totalEnergy += 100;
     }
