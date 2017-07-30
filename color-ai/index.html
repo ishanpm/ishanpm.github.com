@@ -8,34 +8,18 @@
         <meta property="og:image:height" content="365">
         
         <script src="ai.js"></script>
+        
+        <style>
+            .box {
+                border: 1px solid black;
+                margin: 0.5em;
+                padding: 0.5em;
+            }
+        </style>
     </head>
     <body>
         <canvas id="world" width=1200 height=1200></canvas>
-        <div></div>
-        Type: <select id="type">
-            <option>0</option>
-            <option>1</option>
-            <option>2</option>
-        </select>
-        <br>
-        Mind: <select id="mind">
-            <option>dummy</option>
-            <option>follow</option>
-            <option>simple</option>
-            <option>newNeural</option>
-            <option>neural</option>
-            <option>food</option>
-        </select>
-        <br>
-        Time: <span id="time-display"></span> <br>
-        Total energy: <span id="energy-display"></span> <br>
-        Average energy consumption: <span id="consumption-display"></span> / tick <br>
-        # Creatures: <span id="count-display"></span> <br>
-        Most NN splits: <span id="bestnn-display"></span> <br>
-        Longest lifespan: <span id="bestlife-display"></span> <br>
         
-        <button onclick="fast = !fast">Toggle outlines</button>
-        <button onclick="superfast = !superfast">Toggle draw</button>
         <br>
         <button onclick="warpspeed=0">Pause</button>
         <button onclick="warpspeed=1">Warp=1</button>
@@ -44,6 +28,34 @@
         <button onclick="warpspeed=20">Warp=20</button>
         <button onclick="warpspeed=50">Warp=50</button>
         <button onclick="warpspeed=100">Warp=100</button>
+        <br>
+        <button onclick="fast = !fast">Toggle outlines</button>
+        <button onclick="superfast = !superfast">Toggle draw</button>
+        <div class="box">
+            Click to add creature <br>
+            Type: <select id="type">
+                <option>0</option>
+                <option>1</option>
+                <option>2</option>
+            </select>
+            <br>
+            Mind: <select id="mind">
+                <option>dummy</option>
+                <option>follow</option>
+                <option>simple</option>
+                <option>newNeural</option>
+                <option>neural</option>
+                <option>food</option>
+            </select>
+        </div>
+        <div class="box">
+            Time: <span id="time-display"></span> <br>
+            Total energy: <span id="energy-display"></span> <br>
+            Average energy consumption: <span id="consumption-display"></span> / tick <br>
+            # Creatures: <span id="count-display"></span> <br>
+            Most NN splits: <span id="bestnn-display"></span> <br>
+            Longest lifespan: <span id="bestlife-display"></span> <br>
+        </div>
     </body>
     <script>init()</script>
 </html>
