@@ -624,7 +624,7 @@ function init() {
         board.creatures = [];
         board.time = 0;
     } else {
-        board = new Board(1000,1000);
+        board = new Board(1500,1500);
     }
     canvas = new CanvasWrapper();
     canvas.updateMetrics(board);
@@ -645,7 +645,7 @@ function init() {
         new Creature(board, x, y, minds[mind](), type, 100);
     }
     
-    for (var i=0; i<100; i++) {
+    for (var i=0; i<200; i++) {
         var type = Math.floor(Math.random()*3)
         newObject('newNeural',
                   board,
@@ -662,7 +662,7 @@ function init() {
 function tick() {
     board.tick();
     totalEnergy = board.creatures.reduce((s,c)=>s+(c.energy), 0) || 0;
-    while (totalEnergy < 10000) {
+    while (totalEnergy < 20000) {
         var type = Math.floor(Math.random()*3)
         newObject((Math.random()<0.05)?'food':'neural',
                   board,
