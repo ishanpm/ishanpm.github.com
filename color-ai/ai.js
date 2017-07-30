@@ -120,17 +120,17 @@ class Board {
             valCost:  0.05,
             existenceCost: 0.1,
             sizeCost: 0.0001,
-            wallCost: 1,
+            wallCost: 2,
             limitHue: 180,
-            limitSat: 0.8,
-            limitVal: 0.8,
+            limitSat: 0.2,
+            limitVal: 0.2,
             splitMin: 100,
             splitMax: 500,
             eatSpeed: 2,
             sizeAdvantage: 0,//5/20,
             normalizedEating: true,
             drag: 15/20,
-            loop: true,
+            loop: false,
             circle: false,
             //foodChain: [[0,0,1,1],[1,0,0,1],[0,1,0,1]],
             foodChain: [[0,1,1,1],[1,0,1,1],[1,1,0,1]],
@@ -495,7 +495,7 @@ class NeuralNetMind {
             x=0; y=0;
         }
         var input = sensors.reduce((a,b)=>a.concat(b), []);
-        input = input.concat([energy, 2*x/creature.board.width, 2*y/creature.board.height/*/x, y/**/, vx, vy]);
+        input = input.concat([energy/100, 2*x/creature.board.width, 2*y/creature.board.height/*/x, y/**/, vx, vy]);
         var out = this.net.exec(input);
         return {
             moveX: (out[0]-0.5)*creature.board.params.maxSpeed,
