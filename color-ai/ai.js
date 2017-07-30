@@ -530,7 +530,7 @@ class NeuralNet {
         for (var i_l2=0; i_l2<this.l2length; i_l2++) {
             l2[i_l2] = this.l2bias[i_l2];
             for (var i_l1=0; i_l1<this.l1length; i_l1++) {
-                l1[i_l2] += l1[i_l1] * this.l2fac[i_l2][i_l1];
+                l2[i_l2] += l1[i_l1] * this.l2fac[i_l2][i_l1];
             }
             l2[i_l2] = this.sig(l2[i_l2]);
         }
