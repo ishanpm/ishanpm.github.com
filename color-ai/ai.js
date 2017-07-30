@@ -94,8 +94,15 @@ class CanvasWrapper {
         this._setStroke(color);
         this.ctx.lineWidth = this.toScreenScale(thickness);
         this.ctx.beginPath();
-        this.ctx.arc(this.toScreenX(x), this.toScreenY(y), this.toScreenScale(radius), 0, Math.PI*2);
+        this.ctx.arc(this.toScreenX(x), this.toScreenY(y), this.toScreenScale(radius), 0, 2*Math.PI);
         this.ctx.closePath();
+        this.ctx.stroke();
+    }
+    strokeArc(color, thickness, radius, x, y, start, end) {
+        this._setStroke(color);
+        this.ctx.lineWidth = this.toScreenScale(thickness);
+        this.ctx.beginPath();
+        this.ctx.arc(this.toScreenX(x), this.toScreenY(y), this.toScreenScale(radius), start, end);
         this.ctx.stroke();
     }
     strokeRect(color, thickness, x, y, w, h) {
@@ -137,6 +144,7 @@ class Board {
             //foodChain: [[0,0,0,1],[1,0,0,0],[0,1,0,0]],
             rotatePerception: true,
             positionSense: true,
+            memoryNodes: 2,
             separateGenomes: true
         }
         this.creatures = [];
@@ -402,6 +410,11 @@ class Creature extends Thing {
         if (this.lifespan == bestLifespan) {
             canvas.strokeRect([0,1,1], 2, this.x - this.radius-15, this.y - this.radius-15, this.radius*2+30, this.radius*2+30)
         }
+        if (this.thoughts) {
+            canvas.stroke
+            canvas.strokeArc([1,1,1], 2, this.radius + 2, this.x, this.y, 0, Math.PI*this.thoughts.memory[0]);
+            canvas.strokeArc([1,1,1], 2, this.radius + 2, this.x, this.y, Math.PI, Math.PI + Math.PI*this.thoughts.memory[1]);
+        }
     }
 }
 
@@ -466,11 +479,14 @@ class SimpleMind {
 
 class NeuralNetMind {
     constructor(net, iterations, board, type) {
+        this.board = board;
         this.iterations = iterations || 1;
         if (!net) {
-            this.net = new NeuralNet(20, 12, 6, board);
+            this.net = new NeuralNet(20 + board.params.memoryNodes,
+                                     12 + board.params.memoryNodes,
+                                     6  + board.params.memoryNodes);
             // Reincarnation
-            if (board && board.creatures.length > 0) {
+            if (type !== undefined && type !== null) {
                 // Check 50 random creatures for these requirements:
                 // - Is a NN creature
                 // - Is specified type
@@ -494,8 +510,12 @@ class NeuralNetMind {
         if (!creature.board.params.positionSense) {
             x=0; y=0;
         }
+        if (!creature.thoughts) {
+            creature.thoughts = {memory: Array(creature.board.params.memoryNodes).fill(0)}
+        }
         var input = sensors.reduce((a,b)=>a.concat(b), []);
         input = input.concat([energy/100, 2*x/creature.board.width, 2*y/creature.board.height/*/x, y/**/, vx, vy]);
+        input = input.concat(creature.thoughts.memory);
         var out = this.net.exec(input);
         return {
             moveX: (out[0]-0.5)*creature.board.params.maxSpeed,
@@ -503,12 +523,13 @@ class NeuralNetMind {
             hue: out[2] * creature.board.params.limitHue, //Math.atan2(ay, ax) * 180 / Math.PI,
             sat: out[3],
             val: out[4],
-            split: out[5] + 0.5//window.enableSplit ? (energy > 400 ? 1 : 0) : 0
+            split: out[5] + 0.5,//window.enableSplit ? (energy > 400 ? 1 : 0) : 0
+            memory: out.filter((e,i)=>i>5)
         }
     
     }
     newMind() {
-        return new NeuralNetMind(this.net.clone().mutate(0.2, 0.5), this.iterations+1);
+        return new NeuralNetMind(this.net.clone().mutate(0.2, 0.5), this.iterations+1, this.board);
     }
 }
 
@@ -593,6 +614,8 @@ class NeuralNet {
     }
 }
 
+// Here be global variables
+
 var fast = false;
 var superfast = false;
 
@@ -607,7 +630,7 @@ var minds = {dummy:_=>new DummyMind(),
              follow:_=>new FollowMind(),
              simple:_=>new SimpleMind(),
              food:_=>new FoodMind(),
-             newNeural:_=>new NeuralNetMind(null, 1),
+             newNeural:_=>new NeuralNetMind(null, 1, board),
              neural:type=>new NeuralNetMind(null, 1, board, (board.params.separateGenomes ? type : -1))};
 
 function newObject(objType, board, x, y, type, energy) {
