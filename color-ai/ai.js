@@ -115,24 +115,28 @@ class Board {
             creatureSpeed: 1/50,
             maxSpeed: 300,
             movementCost: 1/10000,
-            hueCost:  0,//0.001/180,
+            hueCost:  0.01/180,
             satCost:  0.02,
             valCost:  0.05,
             existenceCost: 0.1,
             sizeCost: 0.0001,
+            wallCost: 1,
             limitHue: 180,
-            limitSat: 0,
-            limitVal: 0,
+            limitSat: 0.8,
+            limitVal: 0.8,
             splitMin: 100,
             splitMax: 500,
-            eatSpeed: 5,
-            sizeAdvantage: 5/20,
+            eatSpeed: 2,
+            sizeAdvantage: 0,//5/20,
             normalizedEating: true,
             drag: 15/20,
             loop: true,
             circle: false,
-            RPSMode: false,
+            //foodChain: [[0,0,1,1],[1,0,0,1],[0,1,0,1]],
+            foodChain: [[0,1,1,1],[1,0,1,1],[1,1,0,1]],
+            //foodChain: [[0,0,0,1],[1,0,0,0],[0,1,0,0]],
             rotatePerception: true,
+            positionSense: true,
             separateGenomes: true
         }
         this.creatures = [];
@@ -236,6 +240,7 @@ class Thing {
         this.radius = 1;
         this.energy = 1;
         this.color = [1,1,1];
+        this.type = 3;
         this.x = x;
         this.y = y;
         this.vx = 0;
@@ -280,6 +285,7 @@ class Creature extends Thing {
         this.type = type;
         this.energy = energy;
         this.lifespan = 0;
+        this.touchingWall = false;
     }
     think() {
         var sensors = this.board.sense(this, this.board.params.creatureAwareness, -this.type)
@@ -313,12 +319,14 @@ class Creature extends Thing {
         this.y += this.vy;
         this.vy *= this.board.params.drag;
         
+        this.touchingWall = false;
         if (this.board.params.circle) {
             var rthis = Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
             var rboard = this.board.width/2 - this.radius;
             if (rthis > rboard) {
                 this.x *= (rboard / rthis);
                 this.y *= (rboard / rthis);
+                this.touchingWall = true;
             }
         } else {
             if (this.board.params.loop) {
@@ -328,10 +336,12 @@ class Creature extends Thing {
                 if (Math.abs(this.x) > board.width/2 - this.radius) {
                     this.x = Math.sign(this.x) * (board.width/2 - this.radius)
                     this.vx *= -1;
+                    this.touchingWall = true;
                 };
                 if (Math.abs(this.y) > board.height/2 - this.radius) {
                     this.y = Math.sign(this.y) * (board.height/2 - this.radius)
                     this.vy *= -1;
+                    this.touchingWall = true;
                 };
             }
         }
@@ -361,28 +371,18 @@ class Creature extends Thing {
         out += (180-Math.abs(this.thoughts.hue - 180)) * board.params.hueCost;
         out += (1-this.thoughts.sat) * board.params.satCost;
         out += (1-this.thoughts.val) * board.params.valCost;
+        out += this.touchingWall ? this.board.params.wallCost : 0;
         
         return out;
     }
     collide(list) {
         var singleCollision = (other, speed) => {
+            var eatSpeeds = this.board.params.foodChain[this.type]
             if (other instanceof Creature || other instanceof FoodPellet) {
-                var canNom = false;
-                if (this.board.params.RPSMode){
-                    canNom = (((this.type - other.type + 3) % 3 == 1));
-                } else {
-                    canNom = (this.energy > other.energy) || this.board.params.normalizedEating;
-                }
-                
-                canNom |= other instanceof FoodPellet;
-                
-                if (canNom) {
-                    // Om nom nom
-                    var amt = speed;
-                    other.energy -= amt;
-                    this.energy += amt;
-                    return true;
-                }
+                var amt = speed * eatSpeeds[other.type];
+                other.energy -= amt;
+                this.energy += amt;
+                return true;
             }
             return false;
         }
@@ -395,7 +395,7 @@ class Creature extends Thing {
     }
     drawpre(canvas) {
         canvas.strokeCircle([[1,0,0],[0,1,0],[0,0,1]][this.type], 2, this.radius + 5, this.x, this.y);
-        if (false){//this.mind.iterations && this.mind.iterations + 3 >= bestNN) {
+        if (/*false/*/this.mind.iterations && this.mind.iterations + 3 >= bestNN/**/) {
             var val = (4 - (bestNN - this.mind.iterations)) / 4;
             canvas.strokeRect([val,val,0], 2, this.x - this.radius-10, this.y - this.radius-10, this.radius*2+20, this.radius*2+20)
         }
@@ -465,29 +465,37 @@ class SimpleMind {
 }
 
 class NeuralNetMind {
-    constructor(net, iterations, creatures, type) {
+    constructor(net, iterations, board, type) {
         this.iterations = iterations || 1;
         if (!net) {
             this.net = new NeuralNet(20, 12, 6, board);
             // Reincarnation
-            if (creatures && creatures.length > 0) {
-                for (var i = 0; i < 20; i++) {
-                    var index = Math.floor(Math.random()*creatures.length);
-                    if (creatures[index].mind && creatures[index].mind.net && (type == -1 || creatures[index].type == type)) {
-                        this.net.deserialize(creatures[index].mind.net.serialize());
-                        this.iterations = creatures[index].mind.iterations + 1;
-                        this.net.mutate(20,0.5);
-                        i = 20;
+            if (board && board.creatures.length > 0) {
+                // Check 50 random creatures for these requirements:
+                // - Is a NN creature
+                // - Is specified type
+                for (var i = 0; i < 50; i++) {
+                    var index = Math.floor(Math.random()*board.creatures.length);
+                    var c = board.creatures[index];
+                    if (c.mind && c.mind.net && (type == -1 || c.type == type)) {
+                        this.net.deserialize(c.mind.net.serialize());
+                        this.iterations = c.mind.iterations + 1;
+                        this.net.mutate(0.2,0.5);
+                        break;
                     }
                 }
+                if (i == 50) console.log("Failed to clone NN, random one created")
             }
         } else {
             this.net = net;
         }
     }
     think(energy, x, y, vx, vy, sensors, creature) {
+        if (!creature.board.params.positionSense) {
+            x=0; y=0;
+        }
         var input = sensors.reduce((a,b)=>a.concat(b), []);
-        input = input.concat([energy, x, y, vx, vy]);
+        input = input.concat([energy, 2*x/creature.board.width, 2*y/creature.board.height/*/x, y/**/, vx, vy]);
         var out = this.net.exec(input);
         return {
             moveX: (out[0]-0.5)*creature.board.params.maxSpeed,
@@ -497,10 +505,10 @@ class NeuralNetMind {
             val: out[4],
             split: out[5] + 0.5//window.enableSplit ? (energy > 400 ? 1 : 0) : 0
         }
-                                
+    
     }
     newMind() {
-        return new NeuralNetMind(this.net.clone().mutate(20, 0.5), this.iterations+1);
+        return new NeuralNetMind(this.net.clone().mutate(0.2, 0.5), this.iterations+1);
     }
 }
 
@@ -543,7 +551,7 @@ class NeuralNet {
     }
     mutate(count, amt) {
         var list = this.serialize();
-        var indexes = new Array(count).fill(0).map(a=>Math.floor(Math.random()*list[0].length));
+        var indexes = new Array(Math.round(count*list[0].length)).fill(0).map(a=>Math.floor(Math.random()*list[0].length));
         indexes.forEach(i=>(list[0][i] += (Math.random()*2 - 1) * amt));
         this.deserialize(list);
     }
@@ -600,7 +608,7 @@ var minds = {dummy:_=>new DummyMind(),
              simple:_=>new SimpleMind(),
              food:_=>new FoodMind(),
              newNeural:_=>new NeuralNetMind(null, 1),
-             neural:type=>new NeuralNetMind(null, 1, board.creatures, (board.params.separateGenomes ? type : -1))};
+             neural:type=>new NeuralNetMind(null, 1, board, (board.params.separateGenomes ? type : -1))};
 
 function newObject(objType, board, x, y, type, energy) {
     if (objType == 'food') {
@@ -616,7 +624,7 @@ function init() {
         board.creatures = [];
         board.time = 0;
     } else {
-        board = new Board(1500,1500);
+        board = new Board(1000,1000);
     }
     canvas = new CanvasWrapper();
     canvas.updateMetrics(board);
@@ -637,14 +645,14 @@ function init() {
         new Creature(board, x, y, minds[mind](), type, 100);
     }
     
-    for (var i=0; i<200; i++) {
+    for (var i=0; i<100; i++) {
         var type = Math.floor(Math.random()*3)
-        new Creature(board,
-                     (Math.random()-0.5)*board.width,
-                     (Math.random()-0.5)*board.height,
-                     minds['newNeural'](type),
-                     type,
-                     100);
+        newObject('newNeural',
+                  board,
+                  (Math.random()-0.5)*board.width,
+                  (Math.random()-0.5)*board.height,
+                  type,
+                  100);
     }
     
     window.enableSplit = true;
@@ -653,8 +661,8 @@ function init() {
 
 function tick() {
     board.tick();
-    totalEnergy = board.creatures.reduce((s,c)=>s+(c.energy), 0);
-    while (totalEnergy < 20000) {
+    totalEnergy = board.creatures.reduce((s,c)=>s+(c.energy), 0) || 0;
+    while (totalEnergy < 10000) {
         var type = Math.floor(Math.random()*3)
         newObject((Math.random()<0.05)?'food':'neural',
                   board,
