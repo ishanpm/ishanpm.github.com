@@ -121,8 +121,8 @@ class Board {
             creatureAwareness: 200,
             creatureSpeed: 1/50,
             maxSpeed: 300,
-            movementCost: 1/10000,
-            hueCost:  0.01/180,
+            movementCost: 1/100000,
+            hueCost:  0.02/180,
             satCost:  0.02,
             valCost:  0.05,
             existenceCost: 0.1,
@@ -402,7 +402,8 @@ class Creature extends Thing {
         }
     }
     drawpre(canvas) {
-        canvas.strokeCircle([[1,0,0],[0,1,0],[0,0,1]][this.type], 2, this.radius + 5, this.x, this.y);
+        var typeColor = [[1,0,0],[0,1,0],[0,0,1]][this.type];
+        canvas.strokeCircle(typeColor, 2, this.radius + 5, this.x, this.y);
         if (/*false/*/this.mind.iterations && this.mind.iterations + 3 >= bestNN/**/) {
             var val = (4 - (bestNN - this.mind.iterations)) / 4;
             canvas.strokeRect([val,val,0], 2, this.x - this.radius-10, this.y - this.radius-10, this.radius*2+20, this.radius*2+20)
@@ -410,10 +411,11 @@ class Creature extends Thing {
         if (this.lifespan == bestLifespan) {
             canvas.strokeRect([0,1,1], 2, this.x - this.radius-15, this.y - this.radius-15, this.radius*2+30, this.radius*2+30)
         }
-        if (this.thoughts) {
-            canvas.stroke
-            canvas.strokeArc([1,1,1], 2, this.radius + 2, this.x, this.y, 0, Math.PI*this.thoughts.memory[0]);
-            canvas.strokeArc([1,1,1], 2, this.radius + 2, this.x, this.y, Math.PI, Math.PI + Math.PI*this.thoughts.memory[1]);
+        if (this.thoughts && this.thoughts.memory) {
+            var segmentSize = 2*Math.PI / this.thoughts.memory.length;
+            for (var i = 0; i < this.thoughts.memory.length; i++) {
+                canvas.strokeArc([1,1,1], 2, this.radius + 1, this.x, this.y, segmentSize*i, segmentSize*(i+this.thoughts.memory[i]));
+            }
         }
     }
 }
@@ -463,6 +465,8 @@ class SimpleMind {
     think(energy, x, y, vx, vy, sensors, creature) {
         var ax = sensors[2][1] + sensors[0][2] - sensors[0][1] - sensors[2][2],
             ay = sensors[3][1] + sensors[1][2] - sensors[1][1] - sensors[3][2];
+        ax *= board.params.maxSpeed / 100;
+        ay *= board.params.maxSpeed / 100;
         return {
             moveX: ax,
             moveY: ay,
@@ -483,7 +487,7 @@ class NeuralNetMind {
         this.iterations = iterations || 1;
         if (!net) {
             this.net = new NeuralNet(20 + board.params.memoryNodes,
-                                     12 + board.params.memoryNodes,
+                                     15 + board.params.memoryNodes,
                                      6  + board.params.memoryNodes);
             // Reincarnation
             if (type !== undefined && type !== null) {
@@ -518,11 +522,11 @@ class NeuralNetMind {
         input = input.concat(creature.thoughts.memory);
         var out = this.net.exec(input);
         return {
-            moveX: (out[0]-0.5)*creature.board.params.maxSpeed,
-            moveY: (out[1]-0.5)*creature.board.params.maxSpeed,
+            moveX: (out[0]-0.5)*creature.board.params.maxSpeed*2,
+            moveY: (out[1]-0.5)*creature.board.params.maxSpeed*2,
             hue: out[2] * creature.board.params.limitHue, //Math.atan2(ay, ax) * 180 / Math.PI,
-            sat: out[3],
-            val: out[4],
+            sat: 1 - (1-out[3]) * creature.board.params.limitSat,
+            val: 1 - (1-out[4]) * creature.board.params.limitVal,
             split: out[5] + 0.5,//window.enableSplit ? (energy > 400 ? 1 : 0) : 0
             memory: out.filter((e,i)=>i>5)
         }
