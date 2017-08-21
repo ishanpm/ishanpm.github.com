@@ -21,6 +21,7 @@
         
         
         <canvas id="world" width=1200 height=1200></canvas>
+        <canvas id="extra" width=1200 height=300></canvas>
         
         <br>
         <button onclick="warpspeed=0">Pause</button>
@@ -31,7 +32,12 @@
         <button onclick="warpspeed=50">Warp=50</button>
         <button onclick="warpspeed=100">Warp=100</button>
         <br>
-        <button onclick="fast = !fast">Toggle outlines</button>
+        <button onclick="board.view.showOverlay = !board.view.showOverlay">Toggle overlay</button>
+        <button onclick="board.view.showType = !board.view.showType">Toggle type ring</button>
+        <button onclick="board.view.showHash = !board.view.showHash">Toggle hash ring</button>
+        <button onclick="board.view.showMemory = !board.view.showMemory">Toggle memory arcs</button>
+        <button onclick="board.view.showOldest = !board.view.showOldest">Toggle oldest mark</button>
+        <button onclick="board.view.showLongestLineage = !board.view.showLongestLineage">Toggle longest lineage mark</button>
         <button onclick="superfast = !superfast">Toggle draw</button>
         <div class="box">
             Click to add creature <br>

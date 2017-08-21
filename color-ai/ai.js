@@ -19,8 +19,8 @@ function hsv2rgb(h, s, v) {
 }
 
 class CanvasWrapper {
-    constructor() {
-        this.canvas = document.getElementById('world');
+    constructor(id) {
+        this.canvas = document.getElementById(id);
         this.ctx = this.canvas.getContext('2d');
         this.onClick = null;
         this.mouseOver = false;
@@ -55,6 +55,7 @@ class CanvasWrapper {
             that.mouseOver = false;
         })
     }
+    // "board" should have a width and height property
     updateMetrics(board) {
         this.width = this.canvas.offsetWidth;
         this.height = this.canvas.offsetHeight;
@@ -105,10 +106,22 @@ class CanvasWrapper {
         this.ctx.arc(this.toScreenX(x), this.toScreenY(y), this.toScreenScale(radius), start, end);
         this.ctx.stroke();
     }
+    fillRect(color, x, y, w, h) {
+        this._setFill(color);
+        this.ctx.fillRect(this.toScreenX(x), this.toScreenY(y+h), this.toScreenScale(w), this.toScreenScale(h));
+    }
     strokeRect(color, thickness, x, y, w, h) {
         this._setStroke(color);
         this.ctx.lineWidth = this.toScreenScale(thickness);
         this.ctx.strokeRect(this.toScreenX(x), this.toScreenY(y+h), this.toScreenScale(w), this.toScreenScale(h));
+    }
+    strokeLine(color, thickness, x1, y1, x2, y2) {
+        this._setStroke(color);
+        this.ctx.lineWidth = this.toScreenScale(thickness);
+        this.ctx.beginPath();
+        this.ctx.moveTo(this.toScreenX(x1), this.toScreenY(y1));
+        this.ctx.lineTo(this.toScreenX(x2), this.toScreenY(y2));
+        this.ctx.stroke();
     }
 }
 
@@ -146,6 +159,14 @@ class Board {
             positionSense: true,
             memoryNodes: 2,
             separateGenomes: true
+        };
+        this.view = {
+            showOverlay: true,
+            showType: true,
+            showHash: false,
+            showMemory: true,
+            showOldest: false,
+            showLongestLineage: false
         }
         this.creatures = [];
     }
@@ -190,6 +211,13 @@ class Board {
         }
         return out;
     }
+    moveCreatureNextTo(dest, creature) {
+        var index = this.creatures.indexOf(dest);
+        if (index > -1) {
+            this.creatures.pop();
+            this.creatures.splice(index+1, 0, creature);
+        }
+    }
     tick() {
         this.time += 1;
         this.creatures.forEach(c=>c.think());
@@ -227,7 +255,7 @@ class Board {
     }
     draw(canvas) {
         canvas.fill([0.1,0.1,0.1]);
-        if (!fast) {
+        if (this.view.showOverlay) {
             this.creatures.forEach(c=>{
                 c.drawpre(canvas);
             })
@@ -282,7 +310,8 @@ class FoodPellet extends Thing {
     }
     
     drawpre(canvas) {
-        canvas.strokeCircle([1,1,1], 2, this.radius + 5, this.x, this.y);
+        if (this.board.view.showType)
+            canvas.strokeCircle([1,1,1], 2, this.radius + 5, this.x, this.y);
     }
 }
 
@@ -294,6 +323,8 @@ class Creature extends Thing {
         this.energy = energy;
         this.lifespan = 0;
         this.touchingWall = false;
+        
+        this.hashColor = colorFromNet(this);
     }
     think() {
         var sensors = this.board.sense(this, this.board.params.creatureAwareness, -this.type)
@@ -318,6 +349,8 @@ class Creature extends Thing {
     }
     update() {
         this.lifespan += 1;
+        
+        if (!this.thoughts) return;
         
         this.vx += +this.thoughts.moveX * this.board.params.creatureSpeed;
         this.x += this.vx;
@@ -364,6 +397,7 @@ class Creature extends Thing {
                                          this.type);
             offspring.energy = this.energy / 2;
             this.energy /= 2;
+            this.board.moveCreatureNextTo(this, offspring);
         }
       
         this.radius = Math.sqrt(this.energy);
@@ -402,16 +436,23 @@ class Creature extends Thing {
         }
     }
     drawpre(canvas) {
-        var typeColor = [[1,0,0],[0,1,0],[0,0,1]][this.type];
-        canvas.strokeCircle(typeColor, 2, this.radius + 5, this.x, this.y);
-        if (/*false/*/this.mind.iterations && this.mind.iterations + 3 >= bestNN/**/) {
+        if (this.board.view.showType) {
+            var typeColor = [[1,0,0],[0,1,0],[0,0,1]][this.type];
+            canvas.strokeCircle(typeColor, 2, this.radius + 5, this.x, this.y);
+        }
+        if (this.board.view.showHash)
+            canvas.strokeCircle(this.hashColor, 2, this.radius + 7, this.x, this.y);
+        
+        
+        if (this.board.view.showLongestLineage && this.mind.iterations && this.mind.iterations + 3 >= bestNN) {
             var val = (4 - (bestNN - this.mind.iterations)) / 4;
             canvas.strokeRect([val,val,0], 2, this.x - this.radius-10, this.y - this.radius-10, this.radius*2+20, this.radius*2+20)
         }
-        if (this.lifespan == bestLifespan) {
+        
+        if (this.board.view.showOldest && this.lifespan == bestLifespan) 
             canvas.strokeRect([0,1,1], 2, this.x - this.radius-15, this.y - this.radius-15, this.radius*2+30, this.radius*2+30)
-        }
-        if (this.thoughts && this.thoughts.memory) {
+        
+        if (this.board.view.showMemory && this.thoughts && this.thoughts.memory) {
             var segmentSize = 2*Math.PI / this.thoughts.memory.length;
             for (var i = 0; i < this.thoughts.memory.length; i++) {
                 canvas.strokeArc([1,1,1], 2, this.radius + 1, this.x, this.y, segmentSize*i, segmentSize*(i+this.thoughts.memory[i]));
@@ -482,29 +523,17 @@ class SimpleMind {
 }
 
 class NeuralNetMind {
-    constructor(net, iterations, board, type) {
+    constructor(net, iterations, board, template) {
         this.board = board;
         this.iterations = iterations || 1;
         if (!net) {
             this.net = new NeuralNet(20 + board.params.memoryNodes,
                                      15 + board.params.memoryNodes,
                                      6  + board.params.memoryNodes);
-            // Reincarnation
-            if (type !== undefined && type !== null) {
-                // Check 50 random creatures for these requirements:
-                // - Is a NN creature
-                // - Is specified type
-                for (var i = 0; i < 50; i++) {
-                    var index = Math.floor(Math.random()*board.creatures.length);
-                    var c = board.creatures[index];
-                    if (c.mind && c.mind.net && (type == -1 || c.type == type)) {
-                        this.net.deserialize(c.mind.net.serialize());
-                        this.iterations = c.mind.iterations + 1;
-                        this.net.mutate(0.2,0.5);
-                        break;
-                    }
-                }
-                if (i == 50) console.log("Failed to clone NN, random one created")
+            if (template) {
+                this.net.deserialize(template.mind.net.serialize());
+                this.iterations = template.mind.iterations + 1;
+                this.net.mutate(0.2,0.5);
             }
         } else {
             this.net = net;
@@ -545,9 +574,9 @@ class NeuralNet {
         this.l1length = l1;
         this.l2length = l2;
         this.l1bias = new Array(l1).fill(0).map(a=>rand());
-        this.l1fac = new Array(l1).fill(0).map(a=>new Array(l0).fill(0).map(b=>rand()));
+        this.l1fac  = new Array(l1).fill(0).map(a=>new Array(l0).fill(0).map(b=>rand()));
         this.l2bias = new Array(l2).fill(0).map(a=>rand());
-        this.l2fac = new Array(l2).fill(0).map(a=>new Array(l1).fill(0).map(b=>rand()));
+        this.l2fac  = new Array(l2).fill(0).map(a=>new Array(l1).fill(0).map(b=>rand()));
     }
     sig(x) {return 1/(1+Math.pow(Math.E,-x));}
     exec(l0) {
@@ -620,7 +649,25 @@ class NeuralNet {
 
 // Here be global variables
 
-var fast = false;
+function stableSort (array, cmp) {
+  cmp = !!cmp ? cmp : (a, b) => {
+    if (a < b) return -1;
+    if (a > b) return 1;
+    return 0;
+  };
+  let stabilizedThis = array.map((el, index) => [el, index]);
+  let stableCmp = (a, b) => {
+    let order = cmp(a[0], b[0]);
+    if (order != 0) return order;
+    return a[1] - b[1];
+  }
+  stabilizedThis.sort(stableCmp);
+  for (let i=0; i<array.length; i++) {
+    array[i] = stabilizedThis[i][0];
+  }
+  return array;
+}
+
 var superfast = false;
 
 var board;
@@ -630,18 +677,90 @@ var totalEnergy;
 var bestNN;
 var bestLifespan;
 var warpspeed=1;
+
+var c2;
+var tickerX;
+var tickerSpeed = 1/100;
+
+var netColors=[];
+function creatureColorFilter(creatures) {
+    creatures = creatures.sort((a,b)=>{
+        if (a[1].type != b[1].type) {
+            return a[1].type-b[1].type;
+        } else {
+            return a[0]-b[0];
+        }
+    });
+    
+    return creatures;
+}
+
+function gatherPopulationColors(count) {
+    // Collect `count` random samples from the population
+    // Pick random indices
+    /*
+    var indices = Array(count).fill().map(_=>(
+        Math.floor(Math.random()*board.creatures.length)
+    ))
+    indices.sort();
+    */
+    indices = Array(board.creatures.length).fill().map((e,i)=>i);
+    
+    // Map to creatures
+    var creatures = indices.map(e=>[e,(board.creatures[e])]);
+    creatures = creatureColorFilter(creatures);
+    
+    // Map to color
+    return creatures.map(c=>{
+        if (c[1].type == 3) {
+            return [1,1,1];
+        } else {
+            return c[1].hashColor;
+        }
+    })
+    
+        
+}
+function drawPopulationColors(canvas, colors, x) {
+    var width = 3, height = 50, y = 25, dy = height / colors.length;
+    for (var i = 0; i < colors.length; i++) {
+        canvas.fillRect(colors[i], x, y-dy-1, width, dy+1);
+        y -= dy;
+    }
+}
+
 var minds = {dummy:_=>new DummyMind(),
              follow:_=>new FollowMind(),
              simple:_=>new SimpleMind(),
              food:_=>new FoodMind(),
              newNeural:_=>new NeuralNetMind(null, 1, board),
-             neural:type=>new NeuralNetMind(null, 1, board, (board.params.separateGenomes ? type : -1))};
+             neural:template=>new NeuralNetMind(null, 1, board, template)};
 
 function newObject(objType, board, x, y, type, energy) {
     if (objType == 'food') {
         return new FoodPellet(board, x, y, energy)
     } else {
-        return new Creature(board, x, y, minds[objType](type), type, energy);
+        var template = null;
+        if (objType == 'neural') {
+            // Reincarnation
+            // Check 50 random creatures for these requirements:
+            // - Is a NN creature
+            // - Is specified type
+            for (var i = 0; i < 50; i++) {
+                var index = Math.floor(Math.random()*board.creatures.length);
+                var c = board.creatures[index];
+                if (c.mind && c.mind.net && (!board.params.separateGenomes || c.type == type)) {
+                    template = c;
+                    break;
+                }
+            }
+            if (i == 50) console.log("Failed to clone NN, random one created")
+        }
+        var newCreature = new Creature(board, x, y, minds[objType](template), type, energy);
+        if (template) {
+            board.moveCreatureNextTo(template, newCreature);
+        }
+        return newCreature;
     }  
 }
 
@@ -653,8 +772,13 @@ function init() {
     } else {
         board = new Board(1500,1500);
     }
-    canvas = new CanvasWrapper();
+    canvas = new CanvasWrapper("world");
     canvas.updateMetrics(board);
+    
+    c2 = new CanvasWrapper("extra");
+    c2.updateMetrics({width:200, height:50});
+    c2.fill([0,0,0])
+    tickerX = -100;
     
     if (repeatingTick) {
         clearInterval(repeatingTick);
@@ -691,7 +815,7 @@ function tick() {
     totalEnergy = board.creatures.reduce((s,c)=>s+(c.energy), 0) || 0;
     while (totalEnergy < 20000) {
         var type = Math.floor(Math.random()*3)
-        newObject((Math.random()<0.05)?'food':'neural',
+        newObject((Math.random()<0.00)?'food':'neural',
                   board,
                   (Math.random()-0.5)*board.width*0.7,
                   (Math.random()-0.5)*board.height*0.7,
@@ -716,6 +840,12 @@ function posttick() {
     
     if (!superfast) board.draw(canvas);
     
+    if (warpspeed > 0) {
+        drawPopulationColors(c2, gatherPopulationColors(100), Math.floor(tickerX*4)/4);
+        tickerX += warpspeed * tickerSpeed;
+        if (tickerX > 100) tickerX = -100;
+    }
+    
     document.getElementById("time-display").innerText = (board.time);
     document.getElementById("energy-display").innerText = (totalEnergy);
     document.getElementById("consumption-display").innerText = (averageConsumption);
@@ -723,3 +853,81 @@ function posttick() {
     document.getElementById("bestnn-display").innerText = (bestNN);
     document.getElementById("bestlife-display").innerText = (bestLifespan);
 }
+
+
+// Draws a neural network... Kinda looks like a buncha lines
+function drawNN(net, inputs, canvas, alignment, offsetX, offsetY) {
+    var spacingX = 100, spacingY = -20, radius = 5, thickness = 1;
+    offsetX -= alignment * spacingX*2;
+    offsetY -= alignment * spacingY*(net.l0length-1);
+    
+    if (!inputs) {inputs = Array(net.l0length).fill(100000)}
+    
+    function gray(x) {
+        var v = 1/(1+Math.pow(Math.E,-x));
+        return [v,v,v];
+    }
+    
+    // Draw fac lines
+    for (var i = 1; i < 3; i++) {
+        facs = [net.l1fac, net.l2fac][i-1];
+        
+        var x1 = offsetX + spacingX * i,
+            x2 = x1 - spacingX;
+        
+        for (var k = 0; k < facs.length; k++) {
+            var y1 = offsetY + spacingY * k;
+            for (var l = 0; l < facs[0].length; l++) {
+                var y2 = offsetY + spacingY * l;
+                canvas.strokeLine(gray(facs[k][l]), thickness, x1, y1, x2, y2);
+            }
+        }
+    }
+    
+    // Draw bias circles
+    for (var i = 0; i < 3; i++) {
+        biases = [inputs, net.l1bias, net.l2bias][i];
+        
+        var x1 = offsetX + spacingX * i;
+        
+        for (var k = 0; k < biases.length; k++) {
+            var y1 = offsetY + spacingY * k;
+            canvas.fillCircle(gray(biases[k]), radius, x1, y1);
+        }
+    }
+}
+
+
+var netColorFactors = Array(3).fill().map(_=>(
+    Array(600).fill().map(_=>(
+        Math.random()-0.5
+    ))
+))
+// Returns a color based on a hash of the creature
+function colorFromNet(creature) {
+    if (creature.mind && creature.mind.net) {
+        var net = creature.mind.net;
+        var netVals = net.serialize()[0];
+        var hashVals = netColorFactors.map(e=>(
+            netVals.reduce((a,b,i)=>a+(b*e[i]), 0) / 10
+        ));
+        
+        if (creature.board.params.separateGenomes) {
+            hashvals[0] = Math.sin(hashVals[0])*40+(creature.type*120)
+        } else {
+            hashVals[0] *= 40;
+        }
+
+        return hsv2rgb(hashvals[0],
+                       Math.sin(hashVals[1])*0.25+0.75,
+                       Math.sin(hashVals[2])*0.25+0.75);
+    } else {
+        return [[1,0,0],[0,1,0],[0,0,1],[1,1,1]][creature.type];
+    }
+}
+
+/*
+c2 = new CanvasWrapper("extra");
+net = board.creatures[200].mind.net;
+c2.updateMetrics({width:60, height:190});
+*/
