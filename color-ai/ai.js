@@ -913,12 +913,12 @@ function colorFromNet(creature) {
         ));
         
         if (creature.board.params.separateGenomes) {
-            hashvals[0] = Math.sin(hashVals[0])*40+(creature.type*120)
+            hashVals[0] = Math.sin(hashVals[0])*40+(creature.type*120)
         } else {
             hashVals[0] *= 40;
         }
 
-        return hsv2rgb(hashvals[0],
+        return hsv2rgb(hashVals[0],
                        Math.sin(hashVals[1])*0.25+0.75,
                        Math.sin(hashVals[2])*0.25+0.75);
     } else {
