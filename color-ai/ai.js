@@ -135,16 +135,16 @@ class Board {
             creatureSpeed: 1/50,
             maxSpeed: 300,
             movementCost: 1/100000,
-            hueCost:  0.02/180,
-            satCost:  0.02,
+            hueCost:  0.05/180,
+            satCost:  0.05,
             valCost:  0.05,
-            existenceCost: 0.1,
+            existenceCost: 0.01,
             sizeCost: 0.0001,
             wallCost: 2,
             limitHue: 180,
             limitSat: 0.2,
             limitVal: 0.2,
-            splitMin: 100,
+            splitMin: 50,
             splitMax: 500,
             eatSpeed: 2,
             sizeAdvantage: 0,//5/20,
@@ -152,8 +152,8 @@ class Board {
             drag: 15/20,
             loop: false,
             circle: false,
-            //foodChain: [[0,0,1,1],[1,0,0,1],[0,1,0,1]],
-            foodChain: [[0,1,1,1],[1,0,1,1],[1,1,0,1]],
+            foodChain: [[0,0,1,1],[1,0,0,1],[0,1,0,1]],
+            //foodChain: [[0,1,1,1],[1,0,1,1],[1,1,0,1]],
             //foodChain: [[0,0,0,1],[1,0,0,0],[0,1,0,0]],
             rotatePerception: true,
             positionSense: true,
@@ -395,8 +395,8 @@ class Creature extends Thing {
                                          this.y,
                                          this.mind.newMind(),
                                          this.type);
-            offspring.energy = this.energy / 2;
-            this.energy /= 2;
+            offspring.energy = this.board.params.splitMin;
+            this.energy -= this.board.params.splitMin;
             this.board.moveCreatureNextTo(this, offspring);
         }
       
@@ -815,7 +815,7 @@ function tick() {
     totalEnergy = board.creatures.reduce((s,c)=>s+(c.energy), 0) || 0;
     while (totalEnergy < 20000) {
         var type = Math.floor(Math.random()*3)
-        newObject((Math.random()<0.00)?'food':'neural',
+        newObject((Math.random()<0)?'neural':'neural',
                   board,
                   (Math.random()-0.5)*board.width*0.7,
                   (Math.random()-0.5)*board.height*0.7,
