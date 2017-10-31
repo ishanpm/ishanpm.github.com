@@ -1,0 +1,72 @@
+transformation = {
+    ante: List of antecedents (default: [])
+    cons: List of consequents (default: [])
+    bidirectional: True/false (default: true)
+    variables: List of variable names and arities
+}
+
+expression = {
+    type: Operator name (plus, equals, variable, integer...),
+    bind: Binding depth
+    bindi: Binding index
+    val: Extra for special types (ex. integer value, variable name),
+    disp: Extra display properties (not used for equality)
+}
+
+All functions have fixed arities, and functions with different numbers of arguments are distinct (use a script or associative property)
+
+
+Thoughts on metafunctions
+
+Input may bind to the function or to any parent of the function
+Function may bind to parents in a replacable manner
+Binding swaps are...
+[caused by a special operator?]
+
+f((\x.y)(z)) => f(y[x/z])
+f((\y[0@4](@2))(z[1@2])) => f(y[0@2](z[1@2]))
+
+[ {type: "f"},
+  [ [ {type:"lambda"},
+      [ {type: "y", bind:[4], bindi:[0]},
+        {bind: [2], bindi:[0]}
+      ]
+    ]
+    {type: "z", bind:[2], bindi:[1]}
+  ]
+]
+
+=>
+
+[ {type: "f"},
+  [ {type: "y", bind:[2], bindi:[0]},
+    {type: "z", bind:[2], bindi:[1]}
+  ]
+]
+
+
+
+[ {type: "f"},
+  [ [ {type: "metaf"},
+      [ {type: "bindr", bind:[2]}]
+    ],
+    {bind: [1,1], bindi:[0,1]}
+  ]
+]
+
+[part of the intrinsic language?]
+yeah probs
+
+Types of variables:
+bind: Binding variable used in binding functions {bind: [#], bindi: [#]}
+var: Named global variable or function used in proofs {bind: [#], bindi: [#]}
+pl: Placeholder used in transformations (converted from var)
+
+Many transformations use metafunctions as part of their definition, to allow subexpression replacement or to enforce variable freeness
+
+Stuff that's still needed:
+- Converting user input to expressions
+- Finding replacements based on expressions
+- Proof framework
+- Special "Proves" token
+- UI stuff
