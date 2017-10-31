@@ -22,28 +22,36 @@ window.logic = (function() {
   }
   
   // Replace "var" variables in expr with vars
-  function replace(expr, vars) {
+  function replace(expr, vars, depth) {
+    depth = depth || 0;
+    //console.log(toString(expr) +" /. "+ toString(vars))
+    
     if (isAtomic(expr)) {
       return clone(expr);
     } else {
       var ans = [];
       // Iterate over expression tree
       for (var i=0; i<expr.length; i++) {
-        ans[i] = replace(expr[i], vars)
+        ans[i] = replace(expr[i], vars, depth+1)
       }
       
       if (isAtomic(expr[0]) && expr[0].type == "pl") {
+        var sub = clone(vars[expr[0].val]);
+        renumber(sub, depth+1, 1)
+        
         if (expr.length > 1) {
           // Function replacement
           // Return function with args replaced with the expression
           ans[0] = null; // Don't use the original head in the replacement
-          ans = replace([vars[expr[0].val]], ans)
+          ans = replace(sub, ans, 0)
         } else {
-          ans = clone(vars[expr[0].val])
+          ans = sub
         }
         
-        rebind(ans, expr[0].bind, expr[0].bindi);
+        rebind(ans, expr[0].bind, expr[0].bindi, -1, 1);
         renumber(ans, -1, 1)
+        
+        console.log(logic.toString(expr)+" -> "+ logic.toString(ans));
       }
       
       return ans;
@@ -51,7 +59,7 @@ window.logic = (function() {
   }
   
   // In-place replacement of bindings in expr at depth
-  function rebind(expr, bind, bindi, depth) {
+  function rebind(expr, bind, bindi, correction, depth) {
     depth = depth || 0;
     if (isAtomic(expr)) {
       if (expr.bind != null) {
@@ -59,7 +67,7 @@ window.logic = (function() {
         var newBindi = [];
         for (var i=0; i<expr.bind.length; i++) {
           if (expr.bind[i] == depth) {
-            newBind[i] = bind[expr.bindi[i]];
+            newBind[i] = bind[expr.bindi[i]] + depth + correction;
             newBindi[i] = bindi[expr.bindi[i]];
           } else {
             newBind[i] = expr.bind[i];
@@ -72,12 +80,14 @@ window.logic = (function() {
     } else {
       // Iterate over expression tree
       for (var i=0; i<expr.length; i++) {
-        rebind(expr[i], bind, bindi, depth+1)
+        rebind(expr[i], bind, bindi, correction, depth+1)
       }
     }
+    
+    return expr;
   }
   
-  // In-place adjustment of bindings in expr above depth
+  // In-place adjustment of bindings in expr at depth
   function renumber(expr, amt, depth) {
     if (isAtomic(expr)) {
       if (expr.bind != null) {
@@ -97,6 +107,8 @@ window.logic = (function() {
         renumber(expr[i], amt, depth+1)
       }
     }
+    
+    return expr;
   }
   
   // Deep clone an expression
@@ -140,7 +152,7 @@ window.logic = (function() {
                 return false;
               }
             } else {
-              if (elem1.bind[i]+d1 != elem2.bind[i]+d2) {
+              if (elem1.bind[i]+d1 != elem2.bind[i]+d2 || elem1.bind[i]-depth > d1) {
                 return false;
               }
             }
@@ -173,6 +185,10 @@ window.logic = (function() {
   
   // Returns true for atomic and false for non-atomic exprs
   function isAtomic(expr) {
+    if (!expr) {
+      console.log("Expression "+expr+" encountered")
+      return true;
+    }
     return !!expr.type;
   }
   
@@ -184,13 +200,46 @@ window.logic = (function() {
     return expr;
   }
   
+  function toString(expr) {
+    if (!expr) {
+      return "???("+expr+")";
+    } else if (isAtomic(expr)) {
+      var ans="";
+      if (expr.type == "lambda") {
+        ans = "\u03bb"
+      } else if (expr.type == "var") {
+        ans = `"${expr.val}"`
+      } else if (expr.type == "pl") {
+        ans = `#${expr.val}`
+      } else if (expr.type == "bind") {
+        ans = "@"
+      } else {
+        ans = expr.type;
+      }
+      if (expr.bind) {
+        ans += `<${expr.bindi}@${expr.bind}>`
+      }
+      return ans;
+    } else if (expr.ante || expr.cons) {
+      return `${toString(expr.ante)} ==> ${toString(expr.cons)}`
+    } else {
+      str = "{"
+      // Iterate over expression tree
+      for (var i=0; i<expr.length; i++) {
+        str += " " + toString(expr[i]);
+      }
+      return str+" }";
+    }
+  }
   
-  var logic = {apply, replaceEach, replace, rebind, clone, equals, isAtomic, index};
+  var logic = {apply, replaceEach, replace, rebind, renumber, clone, equals, isAtomic, index, toString};
   return logic;
 })();
 
-
-   exampleTransform = {
+window.example = (function() {
+  var example = {};
+  
+  example.lambda = {
     ante: [
       [ {type: "pl", val:0},
         [ [ {type:"lambda"},
@@ -198,7 +247,7 @@ window.logic = (function() {
               {type:"bind", bind: [2], bindi:[0]}
             ]
           ],
-          [ {type: "pl", val:2, bind:[2], bindi:[1]}
+          [ {type: "pl", val:2, bind:[3], bindi:[1]}
           ]
         ]
       ]
@@ -206,26 +255,26 @@ window.logic = (function() {
     cons: [
       [ {type: "pl", val:0},
         [ {type: "pl", val:1, bind:[2], bindi:[0]},
-          [ {type: "pl", val:2, bind:[2], bindi:[1]}
+          [ {type: "pl", val:2, bind:[3], bindi:[1]}
           ]
         ]
       ]
     ]
   }
-  exampleStamement =
+  example.statement =
     [ [ {type:"lambda"},
         {type:"bind", bind:[1], bindi:[0]}
       ],
       {type:"a"}
     ]
 
-exampleVars = [
-  {type:"pl", val:1},
-  {type:"pl", val:1},
-  {type:"a"}
-]
+  example.vars = [
+    [{type:"pl", val:1}],
+    [{type:"pl", val:1}],
+    {type:"a"}
+  ]
 
-  exampleStamement2 =
+  example.statement2 =
     [ [ [ {type:"lambda"},
           [ {type:"lambda"},
             [ {type:"bind", bind:[3], bindi:[0]},
@@ -237,3 +286,15 @@ exampleVars = [
       ],
       {type:"b"}
     ]
+  
+  example.bindTest = 
+    [ {type:"bind", bind:[1,2,3], bindi:[0,0]},
+      [ {type:"bind", bind:[2,3,4], bindi:[0,0]},
+        [ {type:"bind", bind:[3,4,5], bindi:[0,0]},
+          [ {type:"bind", bind:[4,5,6], bindi:[0,0]} ]
+        ]
+      ]
+    ]
+  
+  return example;
+})();

@@ -62,4 +62,11 @@ bind: Binding variable used in binding functions {bind: [#], bindi: [#]}
 var: Named global variable or function used in proofs {bind: [#], bindi: [#]}
 pl: Placeholder used in transformations (converted from var)
 
-Many transformations use metafunctions as part of their definition, 
+Many transformations use metafunctions as part of their definition, to allow subexpression replacement or to enforce variable freeness
+
+Stuff that's still needed:
+- Converting user input to expressions
+- Finding replacements based on expressions
+- Proof framework
+- Special "Proves" token
+- UI stuff
