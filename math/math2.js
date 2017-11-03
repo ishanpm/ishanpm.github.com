@@ -200,6 +200,51 @@ window.logic = (function() {
     return expr;
   }
   
+  // Replaces a single expression at a particular index
+  function replaceIndex(expr, index, val) {
+    for (var i=0; i<index.length - 1; i++) {
+      expr = expr[index[i]];
+    }
+    
+    expr[index[index.length - 1]] = val;
+  }
+  
+  function getBindings(expr, depth, ans) {
+    ans = ans || {bind:[], bindi:[]};
+    depth = depth || 0;
+    if (isAtomic(expr)) {
+      if (expr.bind) {
+        for (var i=0; i<expr.bind.length; i++) {
+          if (expr.bind[i] > depth) {
+            ans.bind.push(expr.bind[i] - depth);
+            ans.bindi.push(expr.bindi[i]);
+          }
+        }
+      }
+    } else {
+      for (var i=0; i<expr.length; i++) {
+        getBindings(expr[i], depth+1, ans)
+      }
+    }
+    
+    return ans;
+  }
+  
+  // Produce variables for apply() from an expression
+  function makeVariables(expr, ibase, iargs) {
+    expr = index(expr, ibase);
+  }
+  
+  // Makes a function from an expression
+  function makeVariables(expr, ibase, iargs) {
+    expr = clone(expr);
+    for (var i=0; i<iargs.length; i++) {
+      
+      replaceIndex(expr, iargs[i], {type:"pl",val:"i"})
+    }
+    
+  }
+  
   function toString(expr) {
     if (!expr) {
       return "???("+expr+")";
@@ -232,7 +277,7 @@ window.logic = (function() {
     }
   }
   
-  var logic = {apply, replaceEach, replace, rebind, renumber, clone, equals, isAtomic, index, toString};
+  var logic = {apply, replaceEach, replace, rebind, renumber, clone, equals, isAtomic, index, getBindings, toString};
   return logic;
 })();
 
@@ -259,7 +304,8 @@ window.example = (function() {
           ]
         ]
       ]
-    ]
+    ],
+    bindHints: [{},{0:0},{0:0}]
   }
   example.statement =
     [ [ {type:"lambda"},
