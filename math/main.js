@@ -4,7 +4,7 @@ angular.module("AppNameHere", [])
 .controller("MainController", ["$scope", function($scope) {
   $scope.x = "what could it mean";
   
-  $scope.expr1 = [example.lambda.cons[0],example.lambda.ante[0]];
+  $scope.expr1 = [example.lambda.ante[0],example.lambda.cons[0]];
   $scope.selection = [];
   
   console.log($scope.expr1);
