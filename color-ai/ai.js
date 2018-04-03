@@ -135,25 +135,25 @@ class Board {
             creatureSpeed: 1/50,
             maxSpeed: 300,
             movementCost: 1/100000,
-            hueCost:  0.05/180,
-            satCost:  0.05,
-            valCost:  0.05,
+            hueCost:  0.1/180,
+            satCost:  0.1,
+            valCost:  0.1,
             existenceCost: 0.01,
             sizeCost: 0.0001,
-            wallCost: 2,
+            wallCost: 0,
             limitHue: 180,
-            limitSat: 0.2,
-            limitVal: 0.2,
+            limitSat: 0.8,
+            limitVal: 0.8,
             splitMin: 50,
-            splitMax: 500,
+            splitMax: 5000,
             eatSpeed: 2,
-            sizeAdvantage: 0,//5/20,
+            sizeAdvantage: 1/20,
             normalizedEating: true,
             drag: 15/20,
             loop: false,
-            circle: false,
-            foodChain: [[0,0,1,1],[1,0,0,1],[0,1,0,1]],
-            //foodChain: [[0,1,1,1],[1,0,1,1],[1,1,0,1]],
+            circle: true,
+            //foodChain: [[0,0,1,1],[1,0,0,1],[0,1,0,1]],
+            foodChain: [[0,1,1,1],[1,0,1,1],[1,1,0,1]],
             //foodChain: [[0,0,0,1],[1,0,0,0],[0,1,0,0]],
             rotatePerception: true,
             positionSense: true,
@@ -164,7 +164,7 @@ class Board {
             showOverlay: true,
             showType: true,
             showHash: false,
-            showMemory: true,
+            showMemory: false,
             showOldest: false,
             showLongestLineage: false
         }
@@ -305,7 +305,7 @@ class FoodPellet extends Thing {
     
     update() {
         this.lifespan += 1;
-        this.color = hsv2rgb(this.lifespan*10, 1, 1);
+        this.color = [1,1,1];//hsv2rgb(this.lifespan*10, 1, 1);
         this.radius= Math.sqrt(this.energy);
     }
     
@@ -815,7 +815,7 @@ function tick() {
     totalEnergy = board.creatures.reduce((s,c)=>s+(c.energy), 0) || 0;
     while (totalEnergy < 20000) {
         var type = Math.floor(Math.random()*3)
-        newObject((Math.random()<0)?'neural':'neural',
+        newObject((Math.random()<0.05)?'food':'neural',
                   board,
                   (Math.random()-0.5)*board.width*0.7,
                   (Math.random()-0.5)*board.height*0.7,
@@ -846,6 +846,8 @@ function posttick() {
         if (tickerX > 100) tickerX = -100;
     }
     
+    if (averageConsumption+'' == "arguments_marker") console.error("The universe has dissolved???")
+  
     document.getElementById("time-display").innerText = (board.time);
     document.getElementById("energy-display").innerText = (totalEnergy);
     document.getElementById("consumption-display").innerText = (averageConsumption);

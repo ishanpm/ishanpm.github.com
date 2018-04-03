@@ -4,7 +4,7 @@ window.logic = (function() {
   function apply(trans, ante, vars) {
     // Check if given expressions satisfy antecedents
     var ante1 = replaceEach(trans.ante, vars);
-    if (equals(ante1, ante, 0, 0)) {
+    if (equals(ante1, ante)) {
       // Do the thing
       return replaceEach(trans.cons, vars);
     } else {
@@ -47,7 +47,6 @@ window.logic = (function() {
         } else {
           ans = sub
         }
-        
         rebind(ans, expr[0].bind, expr[0].bindi, -1, 1);
         renumber(ans, -1, 1)
         
@@ -66,9 +65,54 @@ window.logic = (function() {
         var newBind = [];
         var newBindi = [];
         for (var i=0; i<expr.bind.length; i++) {
+          var tmpBindi = expr.bindi[i] || [];
+          var bindIndex = tmpBindi[0] || 0;
           if (expr.bind[i] == depth) {
-            newBind[i] = bind[expr.bindi[i]] + depth + correction;
-            newBindi[i] = bindi[expr.bindi[i]];
+            // first index determines binding slot
+            newBind[i] = bind[bindIndex] + depth + correction;
+            newBindi[i] = [];
+            // append binding target's index values
+            if (bindi && bindi[bindIndex]) {
+              for (var k=0; k<bindi[bindIndex].length; k++) {
+                newBindi[i][k] = bindi[bindIndex][k];
+              }
+            }
+            // append binding source's index values
+            for (var k=1; k<tmpBindi.length; k++) {
+              newBindi[i].push(tmpBindi[k]);
+            }
+          } else {
+            newBind[i] = expr.bind[i];
+            newBindi[i] = tmpBindi;
+          }
+        }
+        expr.bind = newBind;
+        expr.bindi = newBindi;
+      }
+    } else {
+      // Iterate over expression tree
+      for (var i=0; i<expr.length; i++) {
+        rebind(expr[i], bind, bindi, correction, depth+1)
+      }
+    }
+    
+    return expr;
+  }
+  
+  // Prepends to binding indices at depth
+  function addbind(expr, bind, bindi, depth) {
+    depth = depth || 0;
+    if (isAtomic(expr)) {
+      if (expr.bind != null) {
+        var newBind = [];
+        var newBindi = [];
+        for (var i=0; i<expr.bind.length; i++) {
+          if (expr.bind[i] == depth) {
+            newBind[i] = bind + depth;
+            newBindi[i] = [bindi];
+            for (var k=0; k<expr.bindi[i].length; k++) {
+              newBindi[i].push(expr.bindi[i][k]);
+            }
           } else {
             newBind[i] = expr.bind[i];
             newBindi[i] = expr.bindi[i];
@@ -80,7 +124,7 @@ window.logic = (function() {
     } else {
       // Iterate over expression tree
       for (var i=0; i<expr.length; i++) {
-        rebind(expr[i], bind, bindi, correction, depth+1)
+        addbind(expr[i], bind, bindi, depth+1)
       }
     }
     
@@ -133,11 +177,8 @@ window.logic = (function() {
     }
   }
   
-  // Check if elem1[i1] == elem2[i2]  
-  // d1 and d2 subtract from depth for matching binding vars
-  function equals(elem1, elem2, d1, d2, depth) {
-    depth = depth || 0;
-    
+  // Check if elem1 == elem2
+  function equals(elem1, elem2) {
     if (elem1.length === elem2.length) {
       if (isAtomic(elem1)) {
         // Atomic equality test
@@ -147,21 +188,17 @@ window.logic = (function() {
         if (elem1.bindi && elem1.bindi.length != elem2.bindi.length) return false;
         if (elem1.bind) {
           for (var i=0; i<elem1.bind.length; i++) {
-            if (elem1.bind[i] <= depth) {
-              if (elem1.bind[i] != elem2.bind[i]) {
-                return false;
-              }
-            } else {
-              if (elem1.bind[i]+d1 != elem2.bind[i]+d2 || elem1.bind[i]-depth > d1) {
-                return false;
-              }
+            if (elem1.bind[i] != elem2.bind[i]) {
+              return false;
             }
           }
         }
         if (elem1.bindi) {
           for (var i=0; i<elem1.bindi.length; i++) {
-            if (elem1.bindi[i] != elem2.bindi[i]) {
-              return false;
+            for (var k=0; k<elem1.bindi[i].length; k++) {
+              if (elem1.bindi[i][k] != elem2.bindi[i][k]) {
+                return false;
+              }
             }
           }
         }
@@ -170,7 +207,7 @@ window.logic = (function() {
       } else {
         // Composite equality test
         for (var i=0; i<elem1.length; i++) {
-          if (! equals(elem1[i], elem2[i], d1, d2, depth+1)) {
+          if (! equals(elem1[i], elem2[i])) {
             return false;
           }
         }
@@ -209,15 +246,18 @@ window.logic = (function() {
     expr[index[index.length - 1]] = val;
   }
   
+  // Gets external bindings of an expression (not indices)
   function getBindings(expr, depth, ans) {
-    ans = ans || {bind:[], bindi:[]};
+    ans = ans || [];
     depth = depth || 0;
     if (isAtomic(expr)) {
       if (expr.bind) {
         for (var i=0; i<expr.bind.length; i++) {
           if (expr.bind[i] > depth) {
-            ans.bind.push(expr.bind[i] - depth);
-            ans.bindi.push(expr.bindi[i]);
+            var bind = expr.bind[i] - depth;
+            if (ans.indexOf(bind) === -1) {
+              ans.push(bind);
+            }
           }
         }
       }
@@ -230,19 +270,79 @@ window.logic = (function() {
     return ans;
   }
   
-  // Produce variables for apply() from an expression
-  function makeVariables(expr, ibase, iargs) {
-    expr = index(expr, ibase);
-  }
-  
-  // Makes a function from an expression
-  function makeVariables(expr, ibase, iargs) {
-    expr = clone(expr);
+  // Makes a replacement variables from an expression
+  function makeVariables(expr, trans, iroot, iargs) {
+    var expr = clone(expr);
+    var ans = [];
+    // For each metafunction
     for (var i=0; i<iargs.length; i++) {
       
-      replaceIndex(expr, iargs[i], {type:"pl",val:"i"})
+    }
+    return ans;
+  }
+  
+  // Makes a single metafunction, modifying expr and returning the metafunction definition
+  function makeMetafunction(expr, bindHints, iroot, iargs, head) {
+    // Replace incoming bindings
+    // For each argument...
+      // For each instance...
+        // Get all bindings in range
+        // For each binding...
+          // Add a binding index and remap all bindings to use it
+        // Add a pl with all remapped bindings
+    // Get external bindings in range
+      // Remap external bindings to use index from bindHints
+    
+    /*
+    ans = clone(expr);
+    // Replace the arguments with pl's
+    for (var k=0; k<iargs.length; k++) {
+      for (var l=0; l<iargs[k].length; l++) {
+        var bind = getBindings([index(ans,iargs[k][l])])
+        bind = bind.filter(e => {
+          return e <= iargs[k][l].length - iroot.length
+        })
+        if (bind.length > 0) {
+          var bindi = Array(bind.length).fill([]);
+          replaceIndex(ans, iargs[k][l], [{type:"pl",val:k+1,bind,bindi}]);
+          // Rebind children
+        } else {
+          replaceIndex(ans, iargs[k][l], [{type:"pl",val:k+1}]);
+        }
+      }
+    }
+    ans = index(ans, iroot);
+    // Rebind external bindings
+    if (trans.bindHints) {
+      for (var k=0; k<bindHints.length; k++) {
+        addbind(ans,bindHints[k],k)
+      }
+    }
+    */
+  }
+  
+  // Gets external bindings of an expression (not indices)
+  function getBindings(expr, depth, ans) {
+    ans = ans || [];
+    depth = depth || 0;
+    if (isAtomic(expr)) {
+      if (expr.bind) {
+        for (var i=0; i<expr.bind.length; i++) {
+          if (expr.bind[i] > depth) {
+            var bind = expr.bind[i] - depth;
+            if (ans.indexOf(bind) === -1) {
+              ans.push(bind);
+            }
+          }
+        }
+      }
+    } else {
+      for (var i=0; i<expr.length; i++) {
+        getBindings(expr[i], depth+1, ans)
+      }
     }
     
+    return ans;
   }
   
   function toString(expr) {
@@ -262,7 +362,11 @@ window.logic = (function() {
         ans = expr.type;
       }
       if (expr.bind) {
-        ans += `<${expr.bindi}@${expr.bind}>`
+        if (expr.bindi) {
+          ans += `<${expr.bindi}@${expr.bind}>`
+        } else {
+          ans += `<@${expr.bind}>`
+        }
       }
       return ans;
     } else if (expr.ante || expr.cons) {
@@ -277,61 +381,109 @@ window.logic = (function() {
     }
   }
   
-  var logic = {apply, replaceEach, replace, rebind, renumber, clone, equals, isAtomic, index, getBindings, toString};
+  var logic = {apply, replaceEach, replace, rebind, renumber, clone, equals, isAtomic, index, getBindings, makeVariables, toString};
   return logic;
 })();
 
 window.example = (function() {
   var example = {};
-  
   example.lambda = {
     ante: [
       [ {type: "pl", val:0},
         [ [ {type:"lambda"},
-            [ {type: "pl", val:1, bind:[4], bindi:[0]},
-              {type:"bind", bind: [2], bindi:[0]}
+            [ {type: "pl", val:1, bind:[4], bindi:[[]]},
+              {type:"bind", bind: [2], bindi:[[]]}
             ]
           ],
-          [ {type: "pl", val:2, bind:[3], bindi:[1]}
-          ]
+          [ {type: "pl", val:2, bind:[3], bindi:[[]]} ]
         ]
       ]
     ],
     cons: [
       [ {type: "pl", val:0},
-        [ {type: "pl", val:1, bind:[2], bindi:[0]},
-          [ {type: "pl", val:2, bind:[3], bindi:[1]}
-          ]
+        [ {type: "pl", val:1, bind:[2], bindi:[[]]},
+          [ {type: "pl", val:2, bind:[3], bindi:[[]]} ]
         ]
       ]
     ],
-    bindHints: [{},{0:0},{0:0}]
+    bindHints: [null,[4],[3]],
+    plArities: [1, 1, 0]
   }
   example.statement =
     [ [ {type:"lambda"},
-        {type:"bind", bind:[1], bindi:[0]}
+        {type:"bind", bind:[1], bindi:[[]]}
       ],
       {type:"a"}
     ]
 
   example.vars = [
+    [{type:"f"},[{type:"pl", val:1, bind:[2], bindi:[[]]}]],
     [{type:"pl", val:1}],
-    [{type:"pl", val:1}],
-    {type:"a"}
+    {type:"a",bind:[1,1],bindi:[[0,123],[0,456]]}
   ]
 
-  example.statement2 =
-    [ [ [ {type:"lambda"},
-          [ {type:"lambda"},
-            [ {type:"bind", bind:[3], bindi:[0]},
-              {type:"bind", bind:[2], bindi:[0]}
-            ]
+  example.statement1 = 
+    [ {type:"let"},
+      [ [ {type:"lambda"},
+          [ [ {type:"lambda"},
+              [ {type:"bind",bind:[4],bindi:[[]]},
+                {type:"bind",bind:[2],bindi:[[]]}
+              ]
+            ],
+            {type:"a",bind:[4],bindi:[[0]]}
           ]
         ],
-        {type:"a"}
-      ],
-      {type:"b"}
+        {type:"b",bind:[2],bindi:[[1]]}
+      ]
     ]
+  
+  example.vars1a = [
+    [ {type:"let"},
+      [ [ {type:"lambda"},
+          [ {type:"pl",val:1,bind:[null,2,4],bindi:[[],[],[]]} ]
+        ],
+        {type:"b",bind:[2],bindi:[[1]]}
+      ]
+    ],
+    [ {type:"bind",bind:[2],bindi:[[0,1]]},
+      [ {type:"pl",val:1} ]
+    ],
+    {type:"a",bind:[1],bindi:[[0,2,0]]}
+  ]
+
+  example.vars1b = [
+    [ {type:"let"},
+      [ {type:"pl",val:1,bind:[2],bindi:[[]]} ]
+    ],
+    [ [ {type:"lambda"},
+        [ [ {type:"pl",val:1} ],
+          {type:"bind",bind:[2],bindi:[[]]}
+        ]
+      ],
+      {type:"a",bind:[2],bindi:[[0,0,0]]}
+    ],
+    {type:"b",bind:[1],bindi:[[0,0,1]]}
+  ]
+  
+  example.vars1ba = [
+    [ {type:"let"},
+      [ {type:"pl",val:1,bind:[2],bindi:[[]]} ],
+    ],
+    [ {type:"b",bind:[2],bindi:[[0,0,1]]},
+      [ {type:"pl",val:1} ]
+    ],
+    {type:"a",bind:[1],bindi:[[0,0,0]]}
+  ]
+  
+  example.vars1ab = [
+    [ {type:"let"},
+      [ {type:"pl",val:1,bind:[2],bindi:[[]]} ],
+    ],
+    [ [ {type:"pl",val:1} ],
+      {type:"a",bind:[2],bindi:[[0,0,0]]}
+    ],
+    {type:"b",bind:[1],bindi:[[0,0,1]]}
+  ]
   
   example.bindTest = 
     [ {type:"bind", bind:[1,2,3], bindi:[0,0]},

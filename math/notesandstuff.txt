@@ -1,0 +1,37 @@
+Bindings!
+Consist of a list of depths and index lists. The index list can be empty, in which case it is "open", or contain numbers, making it "closed".
+
+Function snipper!
+Snips a metafunction right out from an expression.
+
+Returns the snipped metafunction, or false if there is an error.
+
+Takes as input the index of the head of the function and lists of each instance of the arguments.
+Also takes the required binding signature for the resulting function]
+
+
+Current replacement algorithm!
+  Input: Expression, inputs, bind depth
+  If expression is atomic:
+    Return
+  Else:
+    Recurse over expression tree (depth += 1)
+    If [0] is a pl:
+      Replace globals in input with pl's arguments
+      Rebind replacements to match argument bindings:
+        Bindings must target global site
+        Bind index is bindi[0] (delete it)
+        Replace depth with depth at bind index of pl
+        Prepend bind indices at bind index of pl (no indices is an open binding)
+
+Metafunction extraction algorithm!
+  Input: Expression list, start index list
+
+
+
+\x.p(x) : Object
+p(a) : T -> (\x.p(x))(a) : T
+
+Definition / let - If you can prove that Ex.x p(x), you may use x with the property p(x) anywhere as a convenience
+
+x, x:Prop, y:Prop -> x->y
