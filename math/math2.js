@@ -21,6 +21,107 @@ window.logic = (function() {
     return ans;
   }
   
+  // Replace all instances of [pl] with vars[pl.val]
+  // Bindings are remapped according to pl.bind
+  function replace(expr, vars) {
+    if (isAtomic(expr)) {
+      // Leaf node, do nothing
+      return expr;
+    } else {
+      var out = [];
+      // Iterate over expression tree
+      for (var i=0; i<expr.length; i++) {
+        out[i] = replace(expr[i], vars)
+      }
+      
+      if (expr[0].type == "pl") {
+        // Replace pl
+        
+        return _replace2(vars[expr[0].val], out, expr[0].bind, 0)
+      }
+      
+      return out;
+    }
+  }
+  
+  // Replace all instances of pl with vars[pl.val]
+  // Free vars are remapped according to bind
+  function _replace2(expr, vars, bind, depth) {
+    if (isAtomic(expr)) {
+      if (expr.type == "pl") {
+        // Replace atomic pl
+        return  _replace3(vars[expr.val], depth, 0)
+      } else if (expr.bind) {
+        // Rebind free vars
+        var out = clone(expr)
+        out.bind = []
+        for (var i=0; i<expr.bind.length; i++) {
+          if (expr.bind[i][0] == depth) {
+            out.bind[i] = []
+            for (var k=0; k<bind[expr.bind[i][1]].length; k++){
+              out.bind[i][k] = bind[expr.bind[i][1]][k];
+            }
+            out.bind[i][0] = out.bind[i][0] - 1
+            for (var k=2; k<expr.bind[i].length; k++){
+              out.bind[i].push(expr.bind[i][k])
+            }
+          } else {
+            out.bind[i] = expr.bind[i];
+          }
+        }
+        return out;
+      } else {
+        return expr;
+      }
+    } else {
+      out = [];
+      // Iterate over expression tree
+      for (var i=0; i<expr.length; i++) {
+        out[i] = _replace2(expr[i], vars, bind, depth+1)
+      }
+      
+      return out;
+    }
+  }
+  
+  // Rebind expressions higher than depth2 to depth
+  // Pop expressions at depth2
+  function _replace3(expr, depth, depth2) {
+    if (isAtomic(expr)) {
+      if (expr.bind) {
+        // Rebind free vars
+        var out = clone(expr)
+        out.bind = []
+        for (var i=0; i<expr.bind.length; i++) {
+          if (expr.bind[i][0] == depth2) {
+            out.bind[i] = []
+            for (var k=1; k<expr.bind[i].length; k++){
+              out.bind[i].push(expr.bind[i][k])
+            }
+          } else if (expr.bind[i][0] > depth2) {
+            out.bind[i] = [expr.bind[i][0] + depth - 1]
+            for (var k=1; k<expr.bind[i].length; k++){
+              out.bind[i].push(expr.bind[i][k])
+            }
+          } else {
+            out.bind[i] = expr.bind[i];
+          }
+        }
+        return out;
+      } else {
+        return expr;
+      }
+    } else {
+      out = [];
+      // Iterate over expression tree
+      for (var i=0; i<expr.length; i++) {
+        out[i] = _replace3(expr[i], depth, depth2+1)
+      }
+      
+      return out;
+    }
+  }
+  
   // Deep clone an expression
   // (atom properties are NOT cloned)
   function clone(expr) {
@@ -29,7 +130,6 @@ window.logic = (function() {
       newObj.type = expr.type;
       newObj.val = expr.val;
       newObj.bind = expr.bind;
-      newObj.bindi = expr.bindi;
       newObj.disp = expr.disp;
       return newObj;
     } else {
@@ -51,18 +151,13 @@ window.logic = (function() {
         if (elem1.type != elem2.type) return false;
         if (elem1.val != elem2.val) return false;
         if (elem1.bind && elem1.bind.length != elem2.bind.length) return false;
-        if (elem1.bindi && elem1.bindi.length != elem2.bindi.length) return false;
         if (elem1.bind) {
           for (var i=0; i<elem1.bind.length; i++) {
-            if (elem1.bind[i] != elem2.bind[i]) {
+            if (elem1.bind[i].length != elem2.bind[i].length) {
               return false;
             }
-          }
-        }
-        if (elem1.bindi) {
-          for (var i=0; i<elem1.bindi.length; i++) {
-            for (var k=0; k<elem1.bindi[i].length; k++) {
-              if (elem1.bindi[i][k] != elem2.bindi[i][k]) {
+            for (var k=0; i<elem1.bind[i].length; k++) {
+              if (elem1.bind[i][k] != elem2.bind[i][k]) {
                 return false;
               }
             }
@@ -228,11 +323,7 @@ window.logic = (function() {
         ans = expr.type;
       }
       if (expr.bind) {
-        if (expr.bindi) {
-          ans += `<${expr.bindi}@${expr.bind}>`
-        } else {
-          ans += `<@${expr.bind}>`
-        }
+        ans += `<${expr.bind}>`
       }
       return ans;
     } else if (expr.ante || expr.cons) {
@@ -247,7 +338,7 @@ window.logic = (function() {
     }
   }
   
-  var logic = {apply, replaceEach, replace, rebind, renumber, clone, equals, isAtomic, index, getBindings, makeVariables, toString};
+  var logic = {apply, replaceEach, replace, _replace2, _replace3, clone, equals, isAtomic, index, getBindings, makeVariables, toString};
   return logic;
 })();
 
@@ -257,18 +348,18 @@ window.example = (function() {
     ante: [
       [ {type: "pl", val:0},
         [ [ {type:"lambda"},
-            [ {type: "pl", val:1, bind:[4], bindi:[[]]},
-              {type:"bind", bind: [2], bindi:[[]]}
+            [ {type: "pl", val:1, bind:[[3]]},
+              {type:"bind", bind: [[1]]}
             ]
           ],
-          [ {type: "pl", val:2, bind:[3], bindi:[[]]} ]
+          [ {type: "pl", val:2, bind:[[2]]} ]
         ]
       ]
     ],
     cons: [
       [ {type: "pl", val:0},
-        [ {type: "pl", val:1, bind:[2], bindi:[[]]},
-          [ {type: "pl", val:2, bind:[3], bindi:[[]]} ]
+        [ {type: "pl", val:1, bind:[[1]]},
+          [ {type: "pl", val:2, bind:[[2]]} ]
         ]
       ]
     ],
@@ -277,29 +368,29 @@ window.example = (function() {
   }
   example.statement =
     [ [ {type:"lambda"},
-        {type:"bind", bind:[1], bindi:[[]]}
+        {type:"bind", bind:[[0]]}
       ],
       {type:"a"}
     ]
 
   example.vars = [
-    [{type:"f"},[{type:"pl", val:1, bind:[2], bindi:[[]]}]],
-    [{type:"pl", val:1}],
-    {type:"a",bind:[1,1],bindi:[[0,123],[0,456]]}
+    [{type:"f"},{type:"pl", val:1}],
+    {type:"pl", val:1},
+    {type:"a",bind:[[0,0,0,123],[0,0,0,456]]}
   ]
 
   example.statement1 = 
     [ {type:"let"},
       [ [ {type:"lambda"},
           [ [ {type:"lambda"},
-              [ {type:"bind",bind:[4],bindi:[[]]},
-                {type:"bind",bind:[2],bindi:[[]]}
+              [ {type:"bind",bind:[[3]]},
+                {type:"bind",bind:[[1]]}
               ]
             ],
-            {type:"a",bind:[4],bindi:[[0]]}
+            {type:"a",bind:[[3,0]]}
           ]
         ],
-        {type:"b",bind:[2],bindi:[[1]]}
+        {type:"b",bind:[[1]]}
       ]
     ]
   
