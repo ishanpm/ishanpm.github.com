@@ -164,7 +164,7 @@ class Board {
             showOverlay: true,
             showType: true,
             showHash: false,
-            showMemory: true,
+            showMemory: false,
             showOldest: false,
             showLongestLineage: false
         }
