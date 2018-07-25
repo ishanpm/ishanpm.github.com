@@ -21,7 +21,7 @@ function hsv2rgb(h, s, v) {
 class CanvasWrapper {
     constructor(id) {
         this.canvas = document.getElementById(id);
-        this.ctx = this.canvas.getContext('2d');
+        this.ctx = this.canvas.getContext('2d', {alpha: false});
         this.onClick = null;
         this.mouseOver = false;
         this.mousePos = [0,0];
