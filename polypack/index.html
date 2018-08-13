@@ -6,6 +6,9 @@
       canvas:focus {
         outline: none;
       }
+      p {
+        text-align: center;
+      }
     </style>
   </head>
   <body onload="init()">
@@ -15,5 +18,21 @@
     </center>
     
     <p style="text-align:center;">PolyPack -- Made for <a href="https://ldjam.com/events/ludum-dare/42/$98790">Ludum Dare 42</a></p>
+    
+    <p>
+      Place tile - Left mouse<br>
+      Rotate tile - Q, E, Right mouse<br>
+      Hold - W, Middle mouse<br>
+      Fast-forward timer - S<br>
+    </p>
+    
+    <p>
+      Fill the grid with polyominoes! Once the timer runs out,
+      the board will be cleared, and any tiles left empty will become permanently blocked.
+    </p>
+
+    <p>
+      Your score is the total number of tiles covered plus the number of seconds fast-forwarded (which automatically happens when you can't place any more pieces).
+    </p>
   </body>
 </html>
