@@ -98,6 +98,9 @@ window.logic = (function() {
             for (var k=1; k<expr.bind[i].length; k++){
               out.bind[i].push(expr.bind[i][k])
             }
+            if (out.bind[i].length > 0) {
+              out.bind[i][0] += depth2
+            }
           } else if (expr.bind[i][0] > depth2) {
             out.bind[i] = [expr.bind[i][0] + depth - 1]
             for (var k=1; k<expr.bind[i].length; k++){
@@ -244,42 +247,7 @@ window.logic = (function() {
   
   // Makes a single metafunction, modifying expr and returning the metafunction definition
   function makeMetafunction(expr, bindHints, iroot, iargs, head) {
-    // Replace incoming bindings
-    // For each argument...
-      // For each instance...
-        // Get all bindings in range
-        // For each binding...
-          // Add a binding index and remap all bindings to use it
-        // Add a pl with all remapped bindings
-    // Get external bindings in range
-      // Remap external bindings to use index from bindHints
     
-    /*
-    ans = clone(expr);
-    // Replace the arguments with pl's
-    for (var k=0; k<iargs.length; k++) {
-      for (var l=0; l<iargs[k].length; l++) {
-        var bind = getBindings([index(ans,iargs[k][l])])
-        bind = bind.filter(e => {
-          return e <= iargs[k][l].length - iroot.length
-        })
-        if (bind.length > 0) {
-          var bindi = Array(bind.length).fill([]);
-          replaceIndex(ans, iargs[k][l], [{type:"pl",val:k+1,bind,bindi}]);
-          // Rebind children
-        } else {
-          replaceIndex(ans, iargs[k][l], [{type:"pl",val:k+1}]);
-        }
-      }
-    }
-    ans = index(ans, iroot);
-    // Rebind external bindings
-    if (trans.bindHints) {
-      for (var k=0; k<bindHints.length; k++) {
-        addbind(ans,bindHints[k],k)
-      }
-    }
-    */
   }
   
   // Gets external bindings of an expression (not indices)
