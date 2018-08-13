@@ -220,6 +220,8 @@ class KeyManager {
         this.hold = new VirtualButton();
         this.ffwd = new VirtualButton();
         this.debug = new VirtualButton();
+        this.debug1 = new VirtualButton();
+        this.debug2 = new VirtualButton();
         
         var that = this;
         
@@ -256,13 +258,13 @@ class KeyManager {
     _handleMouse(mouse, down) {
         switch (mouse) {
             case 0:
-                this.mouse.next = down;
+                this.mouse.set(down);
                 break;
             case 2:
-                this.cw.next = down;
+                this.cw.set(down);
                 break;
             case 1:
-                this.hold.next = down;
+                this.hold.set(down);
         }
     }
     
@@ -270,19 +272,31 @@ class KeyManager {
         switch (key) {
             case 81:
             case 'q':
-                this.ccw.next = down;
+                this.ccw.set(down);
                 break;
             case 69:
             case 'e':
-                this.cw.next = down;
+                this.cw.set(down);
                 break;
             case 87:
             case 'w':
-                this.hold.next = down;
+                this.hold.set(down);
                 break;
             case 83:
             case 's':
-                this.ffwd.next = down;
+                this.ffwd.set(down);
+                break;
+            case 192:
+            case '`':
+                this.debug.set(down);
+                break;
+            case 49:
+            case '1':
+                this.debug1.set(down);
+                break;
+            case 50:
+            case '2':
+                this.debug2.set(down);
                 break;
             default:
                 return false;
@@ -297,29 +311,42 @@ class KeyManager {
         this.hold.tick();
         this.ffwd.tick();
         this.debug.tick();
+        this.debug1.tick();
+        this.debug2.tick();
     }
 }
 
 class VirtualButton {
     constructor() {
         this.hold = false;
-        this.next = false;
+        this.queueDown = false;
+        this.queueUp = false;
         this.downListeners = [];
         this.upListeners = [];
     }
     
     tick() {
-        if (this.next != this.hold) {
-            this.hold = this.next;
-            if (this.hold) {
-                for (var i=0; i<this.downListeners.length; i++) {
-                    this.downListeners[i](true);
-                }
-            } else {
-                for (var i=0; i<this.upListeners.length; i++) {
-                    this.upListeners[i](false);
-                }
+        if (!this.hold && this.queueDown) {
+            this.hold = true;
+            for (var i=0; i<this.downListeners.length; i++) {
+                this.downListeners[i](true);
             }
+        }
+        if (this.hold && this.queueUp) {
+            this.hold = false;
+            for (var i=0; i<this.upListeners.length; i++) {
+                this.upListeners[i](false);
+            }
+        }
+        this.queueDown = false;
+        this.queueUp = false;
+    }
+    
+    set(v) {
+        if (v) {
+            this.queueDown = true;
+        } else {
+            this.queueUp = true;
         }
     }
     
@@ -340,6 +367,36 @@ class Board {
         this.oldpieces = [];
         this.blocks = [];
         this.cells = new Array(height).fill(0).map(_=>new Array(width).fill(0));
+    }
+    
+    clear() {
+        this.cells.map(e=>e.fill(0));
+        for (var i=0; i<this.blocks.length; i++) {
+            this.blocks[i].shrink = true;
+        }
+        this.oldpieces = this.oldpieces.concat(this.pieces);
+        this.pieces = [];
+        for (var i=0; i<this.oldpieces.length; i++) {
+            this.oldpieces[i].thickness = -0.2;
+            this.oldpieces[i].fade = 1;
+        }
+    }
+    
+    addBlocker(x,y) {
+        this.cells[y][x] = 2;
+        this.blocks.push(new Block(x,y));
+    }
+    
+    removeBlocker(x,y) {
+        if (this.cells[y][x] == 2) {
+            this.cells[y][x] = 0;
+            for (var i=0; i<this.blocks.length; i++) {
+                if (this.blocks[i].x == x && this.blocks[i].y == y) {
+                    this.blocks[i].shrink = true;
+                    return;
+                }
+            }
+        }
     }
     
     canPlace(type, x, y, r) {
@@ -393,8 +450,7 @@ class Board {
         for (var y=0; y<this.height; y++) {
             for (var x=0; x<this.width; x++) {
                 if (this.cells[y][x] == 0) {
-                    this.cells[y][x] = 2;
-                    this.blocks.push(new Block(x,y));
+                    this.addBlocker(x,y);
                 }
                 if (this.cells[y][x] == 1) {
                     this.cells[y][x] = 0;
@@ -432,7 +488,11 @@ class Board {
         }
         
         for (var i=0; i<this.blocks.length; i++) {
-            this.blocks[i].tick();
+            var destroy = !this.blocks[i].tick();
+            if (destroy) {
+                this.blocks.splice(i,1);
+                i--;
+            }
         }
     }
     
@@ -463,7 +523,7 @@ class Board {
 }
 
 class Polyomino {
-    constructor(game, x, y, r, scale) {
+    constructor(game, type, x, y, r, scale) {
         x = x || 0;
         y = y || 0;
         r = r || 0;
@@ -475,6 +535,7 @@ class Polyomino {
         this.dy = y;
         this.dr = r;
         
+        this.type = type || 0;
         this.dcolor = [0,0,0];
         this.fade = 0;
         this.thickness = 0.45;
@@ -483,7 +544,6 @@ class Polyomino {
         this.dscale = scale;
         
         this.subshapes = [[0,0,1,1],[0,0,1,1],[0,0,1,1],[0,0,1,1]];
-        this.type = 0
     }
     tick() {
         this.dx += (this.x - this.dx) / 5;
@@ -511,7 +571,9 @@ class Polyomino {
         
         for (var i=0; i<this.subshapes.length; i++) {
             var shape = this.subshapes[i];
-            canvas.fillRect(shape[0] - this.dthickness, shape[1] - this.dthickness, shape[2] - (1-2*this.dthickness), shape[3] - (1-2*this.dthickness));
+            if (Math.min(shape[2], shape[3]) + 2*this.dthickness > 1) {
+                canvas.fillRect(shape[0] - this.dthickness, shape[1] - this.dthickness, shape[2] + 2*this.dthickness - 1, shape[3] + 2*this.dthickness - 1);
+            }
         }
         
         canvas.restoreTransform();
@@ -523,10 +585,17 @@ class Block {
         this.x = x;
         this.y = y;
         this.size = 0
+        this.shrink = false;
     }
     
     tick() {
-        this.size += (0.45 - this.size) / 5;
+        if (this.shrink) {
+            this.size += (-0.1 - this.size) / 5;
+        } else {
+            this.size += (0.45 - this.size) / 5;
+        }
+        
+        return (this.size >= 0);
     }
     
     // For draw optimization, expects fill and stroke to be set beforehand
@@ -550,14 +619,17 @@ class Timer {
         
         this.maxTime = 85;
         this.ffwd = false;
+        this.pause = false;
         this.currentTime = this.maxTime;
     }
     
     tick() {
-        if (this.ffwd) {
-            this.currentTime -= this.fspeed;
-        } else {
-            this.currentTime -= framerate / 1000;
+        if (!this.pause) {
+            if (this.ffwd) {
+                this.currentTime -= this.fspeed;
+            } else {
+                this.currentTime -= framerate / 1000;
+            }
         }
     }
     
@@ -567,6 +639,8 @@ class Timer {
         
         if (this.ffwd) {
             canvas.setFill([0,0.5,1]);
+        } else if (this.pause) {
+            canvas.setFill([0.8,0.8,0.8]);
         } else {
             if (this.currentTime > 5) {
                 canvas.setFill([1-t,0,0]);
@@ -585,6 +659,8 @@ class NumberDisplay {
         this.disp = 0;
         this.x = -2;
         this.y = 0;
+        this.r = 3;
+        this.minDigits = 3;
     }
     
     tick() {
@@ -594,17 +670,35 @@ class NumberDisplay {
     draw(canvas) {
         canvas.saveTransform();
         
+        if (this.disp < 0) {
+            var tmp = this.disp;
+            this.disp *= -1;
+            this.draw(canvas);
+            this.disp = tmp;
+            return;
+        }
+        
         canvas.translate(this.x + 0.5, this.y + 0.5);
-        canvas.rotate(-0.25);
+        canvas.rotate(this.r/4);
         canvas.translate(0,0.5)
         canvas.scale(1/1.3);
         canvas.translate(-0.5, -1);
         
+        canvas.setStroke([0,0,0]);
+        
         var frac = this.disp % 1;
         var int = Math.floor(this.disp);
-        var count = Math.max(1, Math.ceil(Math.log10(this.disp)));
+        var count = Math.max(this.minDigits, Math.floor(Math.log10(Math.ceil(this.disp))) + 1);
         
         for (var i=0; i<count; i++) {
+            if (int == 0) {
+                var gray = 1-frac;
+                if (i < this.minDigits) {
+                    gray *= 0.8;
+                }
+                canvas.setStroke([gray,gray,gray]);
+            }
+            
             this._drawDigit(canvas, int + frac);
             canvas.translate(-1.3,0);
             
@@ -624,7 +718,6 @@ class NumberDisplay {
         
         var line = data[0].map((e1,i1)=>e1.map((e2,i2)=>e2*(1-frac) + data[1][i1][i2]*(frac)));
         
-        canvas.setStroke([0,0,0]);
         canvas.strokePolyLine(0.1, line)
     }
 }
@@ -648,17 +741,115 @@ class RandomBag {
     }
 }
 
+class TitleScreen {
+    constructor(game) {
+        this.game = game;
+        this.time1 = 0;
+        
+        this.polyList = [
+            {t:27, x:1, y:3, r:0}, //P
+            {t:8 , x:1, y:1, r:2},
+            {t:21, x:4, y:4, r:0}, //o
+            {t:21, x:4, y:1, r:2},
+            {t:4 , x:6, y:2, r:1}, //l
+            {t:17, x:8, y:2, r:1}, //y
+            {t:1 , x:9, y:1, r:1},
+            {t:20, x:0, y:7, r:1}, //P
+            {t:9 , x:1, y:5, r:2},
+            {t:25, x:3, y:7, r:1}, //a
+            {t:14, x:5, y:6, r:3},
+            {t:3 , x:6, y:5, r:2}, //c
+            {t:3 , x:6, y:8, r:1},
+            {t:25, x:8, y:7, r:1}, //k
+            {t:0 , x:9, y:8, r:0},
+            {t:1 , x:9, y:5, r:1}
+        ];
+        this.pieceList = [];
+    }
+    
+    init() {
+        for (var i=0; i<this.polyList.length; i++) {
+            //this.game.board.addPoly(new Polyomino(this.game, this.polyList[i].t, this.polyList[i].x, this.polyList[i].y, this.polyList[i].r));
+        }
+        for (var i=0; i<10; i++) {
+            this.game.board.addBlocker(i,0);
+            this.game.board.addBlocker(i,9);
+        }
+    }
+    
+    tick() {
+        if (this.time1 % 10 == 0) {
+            var i = this.time1 / 10;
+            if (i >= 0 && i < this.polyList.length) {
+                this.pieceList[i] = new Polyomino(this.game, 0, this.polyList[i].x, this.polyList[i].y, this.polyList[i].r);
+                this.game.board.addPoly(this.pieceList[i]);
+            }
+        }
+        /*if ((this.time1 - 45) % 10 == 0) {
+            var i = (this.time1 - 45) / 10;
+            if (i >= 0 && i < this.polyList.length) {
+                this.pieceList[i].r = this.polyList[i].r;
+            }
+        }*/
+        if ((this.time1 - 45) % 10 == 0) {
+            var i = (this.time1 - 45) / 10;
+            if (i >= 0 && i < this.polyList.length) {
+                this.pieceList[i].type = this.polyList[i].t;
+            }
+        }
+        this.time1++;
+    }
+}
+
+class GameOverScreen {
+    constructor(game) {
+        this.game = game;
+        this.time = 0;
+        this.finalScore = game.score.num;
+        this.finalScoreDisp = null;
+        game.score.num = 0;
+    }
+    
+    tick() {
+        if (this.time%5 == 0) {
+            var i = this.time/5 + 1;
+            if (i < 9) {
+                this.game.board.removeBlocker(9-i,4);
+                this.game.board.removeBlocker(i,5);
+            }
+            if (i == 10) {
+                this.finalScoreDisp = new NumberDisplay();
+                this.finalScoreDisp.minDigits = 8;
+                this.finalScoreDisp.x = 8;
+                this.finalScoreDisp.y = 4;
+                this.finalScoreDisp.r = 0;
+                this.finalScoreDisp.num = this.finalScore;
+            }
+        }
+        
+        this.time++;
+        
+        if (this.finalScoreDisp) this.finalScoreDisp.tick();
+    }
+    
+    draw(canvas) {
+        if (this.finalScoreDisp) this.finalScoreDisp.draw(canvas);
+    }
+}
+
 class Game {
     constructor() {
         this.canvas = new CanvasWrapper("game");
         this.canvas.updateMetrics(14,10, 2,0);
         this.input = new KeyManager(this.canvas);
         
+        this.title = null;
+        
         this.timer = new Timer(this);
         this.score = new NumberDisplay();
         this.rand = new RandomBag(POLYS.length);
         
-        this.inGame = true;
+        this.inGame = false;
         
         this.holdQueue = [];
         this.nextQueue = [];
@@ -688,17 +879,33 @@ class Game {
         this.input.ffwd.addUpListener(function() {
             that.checkFfwd();
         })
+        this.input.debug1.addDownListener(function() {
+            that.mousePiece.type = (that.mousePiece.type + 1) % POLYS.length;
+        })
         this.input.debug.addDownListener(function() {
-            //that.mousePiece.type = (that.mousePiece.type - 1 + POLYS.length) % POLYS.length;
-            that.nextBoard();
+            that.mousePiece.type = (that.mousePiece.type - 1 + POLYS.length) % POLYS.length;
+        })
+        this.input.debug2.addDownListener(function() {
+            that.timer.pause = true;
         })
         this.input.mouse.addDownListener(function() {
-            that.placePiece();
+            if (that.title) {
+                that.title = null;
+                that.inGame = true;
+                that.board.clear();
+            } else if (that.gameOver) {
+                that.reset();
+            } else {
+                that.placePiece();
+            }
         })
+        
+        this.reset();
     }
     
     placePiece() {
         if (this.board.addPoly(this.mousePiece)) {
+            console.log(this.mousePiece.type, this.mousePiece.x, this.mousePiece.y, this.mousePiece.r % 4);
             this.score.num += POLYCOVER[this.mousePiece.type].length;
                 
             this.mousePiece.thickness = 0.45;
@@ -717,8 +924,8 @@ class Game {
         this.holdQueue.splice(0,1);
         
         var newPiece = new Polyomino(
-                this, this.board.width + 0.5, -0.5, 0, 0.2);
-        newPiece.type = tmp;
+                this, tmp, this.board.width + 0.5, -0.5, 0, 0.2);
+        newPiece.thickness = 0.5;
         this.holdQueue.push(newPiece);
         this.fillHoldQueue();
     }
@@ -726,8 +933,8 @@ class Game {
     fillHoldQueue() {
         while (this.holdQueue.length < 2) {
             var newPiece = new Polyomino(
-                    this, this.board.width + 0.5, -0.5, 0, 0.2);
-            newPiece.type = this.rand.get();
+                    this, this.rand.get(), this.board.width + 0.5, -0.5, 0, 0.2);
+            newPiece.thickness = 0.5;
             this.holdQueue.push(newPiece);
         }
         for (var i=0; i<this.holdQueue.length; i++) {
@@ -738,8 +945,8 @@ class Game {
     fillNextQueue() {
         while (this.nextQueue.length < 3) {
             var newPiece = new Polyomino(
-                    this, this.board.width + 0.5, this.board.height + 1.5, 0, 0.2);
-            newPiece.type = this.rand.get();
+                    this, this.rand.get(), this.board.width + 0.5, this.board.height + 1.5, 0, 0.2);
+            newPiece.thickness = 0.5;
             this.nextQueue.push(newPiece);
         }
         
@@ -763,7 +970,7 @@ class Game {
         this.board.nextBoard();
         
         if (this.board.emptyCount() == 0) {
-            this.inGame = false;
+            this.endGame();
         } else {
             this.timer.currentTime = (10 + this.board.emptyCount()*0.75);
             this.checkFfwd();
@@ -787,12 +994,27 @@ class Game {
         }
     }
     
+    endGame() {
+        this.inGame = false;
+        this.gameOver = new GameOverScreen(this);
+    }
+    
+    reset() {
+        this.gameOver = null;
+        this.board.clear();
+        this.score.num = 0;
+        this.inGame = false;
+        this.timer = new Timer(this);
+        this.title = new TitleScreen(this);
+        this.title.init();
+    }
+    
     tick() {
         if (this.inGame) {
-            if (this.timer.ffwd) {
+            if (this.timer.ffwd && !this.timer.pause) {
                 this.score.num += this.timer.fspeed;
             }
-            if (this.timer.currentTime < 0) {
+            if (this.timer.currentTime < 0 || (this.timer.ffwd && this.timer.pause)) {
                 this.nextBoard();
             }
             if (this.mousePiece) {
@@ -802,6 +1024,8 @@ class Game {
         
             this.timer.tick();
         }
+        if (this.title) this.title.tick();
+        if (this.gameOver) this.gameOver.tick();
         this.score.tick();
         this.input.tick();
         this.board.tick();
@@ -829,6 +1053,8 @@ class Game {
             this.timer.draw(this.canvas);
             this.mousePiece.draw(this.canvas);
         }
+        
+        if (this.gameOver) this.gameOver.draw(this.canvas);
         
         this.score.draw(this.canvas);
         
