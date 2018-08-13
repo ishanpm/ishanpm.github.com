@@ -1,7 +1,7 @@
 # [ishanpm.github.io](http://ishanpm.github.io)
 Maybe you want to check out my [LD37 game](/upwards), or its [post-competition version](/upwards_post)?
 
-There's also my [LD42 game](/polypack), PolyPack.
+There's also my LD42 game, [PolyPack](/polypack).
 
 My [itch.io page](https://woofmao.itch.io) has some of my other games.
 
