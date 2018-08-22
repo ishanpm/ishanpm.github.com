@@ -535,8 +535,8 @@ window.example = (function() {
     
     return consume(0);
   }
-  example.twotwofour = `
-'/4
+  example.twotwofour =
+`'/4
   '/2
     '/pred
       '/minus
@@ -554,7 +554,6 @@ window.example = (function() {
       /a/b ''a pred b
     /n/f/x'''n /g/h'h'g f /u x /u u
   /f/x'f'f x
-/f/x'f'f'f'f x
-`
+/f/x'f'f'f'f x`
   return example;
 })();
