@@ -9,6 +9,7 @@
 </head>
 <body ng-app="AppNameHere" ng-controller="MainController">
   <p>{{x}}</p>
+  <textarea ng-model="input" style="width: 90%; height: 10em;"></textarea><button ng-click="setExprLambda(input)">Set</button>
   <p>{{expr1 | exprToString}}</p>
   <expression expression="expr1" expr-click="onExprClick(expr)"></expression>
 </body>
