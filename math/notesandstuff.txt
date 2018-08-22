@@ -6,9 +6,9 @@ Snips a metafunction right out from an expression.
 
 Returns the snipped metafunction, or false if there is an error.
 
-Takes as input the index of the head of the function and lists of each instance of the arguments.
-Also takes the required binding signature for the resulting function]
+Takes as input a list of expressions, and start/end indices of one of each function instance
 
+A placeholder expression is defined to be any compound expression for which expr[0].type == "pl"
 
 Current replacement algorithm!
   Input: Expression, inputs, bind depth
@@ -16,22 +16,37 @@ Current replacement algorithm!
     Return
   Else:
     Recurse over expression tree (depth += 1)
-    If [0] is a pl:
+    If it's a placehlder expression:
       Replace globals in input with pl's arguments
       Rebind replacements to match argument bindings:
         Bindings must target global site
-        Bind index is bindi[0] (delete it)
+        Bind index is bind[0] (delete it)
         Replace depth with depth at bind index of pl
-        Prepend bind indices at bind index of pl (no indices is an open binding)
+        Prepend bind indices at bind index of pl
 
 Metafunction extraction algorithm!
-  Input: Expression list, start index list
-
+  (Gather external bindings on each instance)
+    (Get the parent info on the instance)
+    For every expression...
+      Maintain this list...
+        If it's the start of a placeholder expression...
+          Mark it as a placeholder
+        If the previous expression was marked as a placeholder and this the last node...
+          Mark it with the next index
+        If the previous expression was marked as a placeholder...
+          Also mark it as a placeholder
+        Otherwise...
+          Mark it with the next index
+    (Map the bindings in the instance)
+    For each expression in the tree:
+        
+  (Write the appropriate path to each outgoing binding)
 
 
 \x.p(x) : Object
 p(a) : T -> (\x.p(x))(a) : T
 
-Definition / let - If you can prove that Ex.x p(x), you may use x with the property p(x) anywhere as a convenience
+Syntactical definition - Given any expression e (possibly containing bound variables) and a free symbol x, you may define x to be shorthand for e
+Empty definition - Given a free symbol x, you may use it in proofs or axioms
 
 x, x:Prop, y:Prop -> x->y
