@@ -5,11 +5,15 @@ angular.module("AppNameHere", [])
   $scope.x = "two plus two equals four ({\u03bb {\u03bb @<2>}} means true)";
   
   $scope.expr1 = [example.parseLambda(example.twotwofour)];
+  $scope.input = example.twotwofour;
   $scope.selection = [];
   
   console.log($scope.expr1);
   
-  $scope.onExprClick = function(val) {
+  $scope.setExprLambda = function setExprLambda(val) {
+    $scope.expr1 = [example.parseLambda(val)];
+  }  
+  $scope.onExprClick = function onExprClick(val) {
     var expr = logic.index($scope.expr1, val)
     if (expr.type == "lambda") {
       val = val.slice(0,-1);
