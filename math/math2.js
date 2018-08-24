@@ -413,47 +413,334 @@ window.logic = (function() {
 
 window.example = (function() {
   var example = {};
-  example.lambda = {
-    ante: [
-      [ {type: "pl", val:0},
-        [ [ {type:"lambda"},
-            [ {type: "pl", val:1, bind:[[4]]},
-              {type:"bind", bind: [[2]]}
+  
+  example.rules = {
+    lambda: {
+      ante: [
+        [ {type: "pl", val:0},
+          [ [ {type:"lambda"},
+              [ {type: "pl", val:1, bind:[[4]]},
+                {type:"bind", bind: [[2]]}
+              ]
+            ],
+            [ {type: "pl", val:2, bind:[[3]]} ]
+          ]
+        ]
+      ],
+      cons: [
+        [ {type: "pl", val:0},
+          [ {type: "pl", val:1, bind:[[2]]},
+            [ {type: "pl", val:2, bind:[[3]]} ]
+          ]
+        ]
+      ],
+      plArities: [1, 1, 0],
+      inputsNeeded: 1,
+      getVars: function (fullexpr, path, expr) {
+        path = path[0];
+        expr = expr[0];
+        
+        if (expr.type == "lambda") {
+          path = path.slice(0,-1);
+        } else if (expr[0] && expr[0].type == "lambda") {
+          // No change
+        } else if (expr[0] && expr[0][0] && expr[0][0].type == "lambda") {
+          path = path.concat([0]);
+        }
+        
+        expr = logic.index(fullexpr, path);
+        
+        return [[[path.slice(1,-1)]], [logic.getAllFree(expr[1])], []];
+      }
+    },
+    invlambda: {
+      ante: [
+        [ {type: "pl", val:0},
+          [ {type: "pl", val:1, bind:[[2]]},
+            [ {type: "pl", val:2, bind:[[3]]} ]
+          ]
+        ]
+      ],
+      cons: [
+        [ {type:"pl", val:0},
+          [ [ {type:"lambda"},
+              [ {type:"pl", val:1, bind:[[4]]},
+                {type:"bind", bind: [[2]]}
+              ]
+            ],
+            [ {type: "pl", val:2, bind:[[3]]} ]
+          ]
+        ]
+      ],
+      plArities: [1, 1, 0],
+      inputsNeeded: "many",
+      getVars: function (fullexpr, path, expr) {
+        return [[[path[0].slice(1)]], [path.slice(1).map(e=>e.slice(path[0].length))], []];
+      }
+    },
+    eta: {
+      ante: [
+        [ {type:"pl", val:0},
+          [ {type:"lambda"},
+            [ [ {type:"pl", val:1, bind:[[4]]} ],
+              {type:"bind", bind:[[2]]}
+            ]
+          ]
+        ]
+      ],
+      cons: [
+        [ {type:"pl", val:0},
+          [ {type:"pl", val:1, bind:[[2]]} ]
+        ]
+      ],
+      plArities: [1,0],
+      inputsNeeded: 1,
+      getVars: function (fullexpr, path, expr) {
+        path = path[0];
+        expr = expr[0];
+        parent1 = logic.index(fullexpr, path.slice(0,-1));
+        parent2 = logic.index(fullexpr, path.slice(0,-2));
+        
+        
+        if (expr.type == "lambda") {
+          path = path.slice(0,-1);
+        } else if (expr[0] && expr[0].type == "lambda") {
+          // No change
+        } else if (expr.type == "bind" && parent2 && parent2[0] && parent2[0].type == "lambda") {
+          path = path.slice(0,-2);
+        } else if (parent1 && parent1[0] && parent1[0].type == "lambda") {
+          path = path.slice(0,-1);
+        } else {
+          return;
+        }
+        
+        expr = logic.index(fullexpr, path);
+        
+        return [[[path.slice(1)]], []];
+      }
+    },
+    inveta: {
+      ante: [
+        [ {type:"pl", val:0},
+          [ {type:"pl", val:1, bind:[[2]]} ]
+        ]
+      ],
+      cons: [
+        [ {type:"pl", val:0},
+          [ {type:"lambda"},
+            [ [ {type:"pl", val:1, bind:[[4]]} ],
+              {type:"bind", bind:[[2]]}
+            ]
+          ]
+        ]
+      ],
+      plArities: [1,0],
+      inputsNeeded: 1,
+      getVars: ((f,p,e) => [[[p[0].slice(1)]],[]])
+    },
+    
+    // Peano aritmetic
+    /*
+    eqref: {
+      ante: [
+        [ {type:"memtype"},
+          [ {type:"pl",val:0} ],
+          {type:"typenat"}
+        ]
+      ],
+      cons: [
+        [ {type:"equals"},
+          [ {type:"pl",val:0} ],
+          [ {type:"pl",val:0} ]
+        ]
+      ],
+      plArities: [0],
+      inputsNeeded: 1,
+      getVars: (f,p,e)=>[[]]
+    },
+    eqsym: {
+      ante: [
+        [ {type:"equals"},
+          [ {type:"pl",val:0} ],
+          [ {type:"pl",val:1} ]
+        ]
+      ],
+      cons: [
+        [ {type:"equals"},
+          [ {type:"pl",val:1} ],
+          [ {type:"pl",val:0} ]
+        ]
+      ],
+      plArities: [0,0],
+      inputsNeeded: 1,
+      getVars: (f,p,e)=>[[],[]]
+    },
+    eqtrans: {
+      ante: [
+        [ {type:"equals"},
+          [ {type:"pl",val:0} ],
+          [ {type:"pl",val:1} ]
+        ],
+        [ {type:"equals"},
+          [ {type:"pl",val:1} ],
+          [ {type:"pl",val:2} ]
+        ],
+      ],
+      cons: [
+        [ {type:"equals"},
+          [ {type:"pl",val:0} ],
+          [ {type:"pl",val:2} ]
+        ]
+      ],
+      plArities: [0,0,0],
+      inputsNeeded: 2,
+      getVars: (f,p,e)=>[[],[],[]]
+    },
+    eqclosed: {
+      ante: [
+        [ {type:"equals"},
+          [ {type:"pl",val:0} ],
+          [ {type:"pl",val:1} ]
+        ],
+        [ {type:"memtype"},
+          [ {type:"pl",val:0} ],
+          {type:"typenat"}
+        ]
+      ],
+      cons: [
+        [ {type:"memtype"},
+          [ {type:"pl",val:1} ],
+          {type:"typenat"}
+        ]
+      ],
+      plArities: [0,0],
+      inputsNeeded: 2,
+      getVars: (f,p,e)=>[[],[]]
+    },
+    succclosed: {
+      ante: [
+        [ {type:"memtype"},
+          [ {type:"pl",val:0} ],
+          {type:"typenat"}
+        ],
+      ],
+      cons: [
+        [ {type:"memtype"},
+          [ {type:"succ"},
+            [ {type:"pl",val:0} ]
+          ],
+          {type:"typenat"}
+        ]
+      ],
+      plArities: [0],
+      inputsNeeded: 1,
+      getVars: (f,p,e)=>[[]]
+    },
+    succinj: {
+      ante: [
+        [ {type:"equals"},
+          [{type:"succ"},[{type:"pl",val:0}]],
+          [{type:"succ"},[{type:"pl",val:1}]]
+        ],
+      ],
+      cons: [
+        [ {type:"equals"},
+          [ {type:"pl",val:0} ],
+          [ {type:"pl",val:1} ]
+        ],
+      ],
+      plArities: [0,0],
+      inputsNeeded: 1,
+      getVars: (f,p,e)=>[[],[]]
+    },
+    invsuccinj: {
+      ante: [
+        [ {type:"equals"},
+          [ {type:"pl",val:0} ],
+          [ {type:"pl",val:1} ]
+        ],
+      ],
+      cons: [
+        [ {type:"equals"},
+          [{type:"succ"},[{type:"pl",val:0}]],
+          [{type:"succ"},[{type:"pl",val:1}]]
+        ],
+      ],
+      plArities: [0,0],
+      inputsNeeded: 1,
+      getVars: (f,p,e)=>[[],[]]
+    },
+    pluszero: {
+      ante: [
+        [ {type:"memtype"},
+          [ {type:"pl", val:0} ],
+          {type:"typenat"}
+        ]
+      ],
+      cons: [
+        [ {type:"equals"},
+          [ {type:"plus"},
+            [ {type:"pl",val:0} ],
+            {type:"0"}
+          ],
+          [ {type:"pl",val:0} ],
+        ],
+      ],
+      plArities: [0],
+      inputsNeeded: 1,
+      getVars: (f,p,e)=>[[]]
+    },
+    plussucc: {
+      ante: [
+        [ {type:"memtype"},
+          [ {type:"pl", val:0} ],
+          {type:"typenat"}
+        ],
+        [ {type:"memtype"},
+          [ {type:"pl", val:1} ],
+          {type:"typenat"}
+        ]
+      ],
+      cons: [
+        [ {type:"equals"},
+          [ {type:"plus"},
+            [ {type:"pl",val:0} ],
+            [ {type:"succ"},
+              [ {type:"pl",val:1} ]
             ]
           ],
-          [ {type: "pl", val:2, bind:[[3]]} ]
-        ]
-      ]
-    ],
-    cons: [
-      [ {type: "pl", val:0},
-        [ {type: "pl", val:1, bind:[[2]]},
-          [ {type: "pl", val:2, bind:[[3]]} ]
-        ]
-      ]
-    ],
-    plArities: [1, 1, 0]
-  }
-  example.lambdainv = {
-    ante: [
-      [ {type: "pl", val:0},
-        [ {type: "pl", val:1, bind:[[2]]},
-          [ {type: "pl", val:2, bind:[[3]]} ]
-        ]
-      ]
-    ],
-    cons: [
-      [ {type: "pl", val:0},
-        [ [ {type:"lambda"},
-            [ {type: "pl", val:1, bind:[[4]]},
-              {type:"bind", bind: [[2]]}
+          [ {type:"succ"},
+            [ {type:"plus"},
+              [ {type:"pl",val:0} ],
+              [ {type:"pl",val:1} ]
             ]
           ],
-          [ {type: "pl", val:2, bind:[[3]]} ]
-        ]
-      ]
-    ],
-    plArities: [1, 1, 0]
+        ],
+      ],
+      plArities: [0,0],
+      inputsNeeded: 2,
+      getVars: (f,p,e)=>[[],[]]
+    },
+    */
+    
+    // First-order logic
+    /*
+    mp: {
+      ante: [
+        [ {type:"implies"},
+          [ {type:"pl",val:0} ],
+          [ {type:"pl",val:1} ],
+        ],
+        [ {type:"pl", val:0} ]
+      ],
+      cons: [
+        [ {type:"pl", val:1} ]
+      ],
+      plArities: [0,0],
+      inputsNeeded: 2,
+      getVars: (f,p,e)=>[[],[]]
+    },
+    */
   }
   example.statement =
     [ [ {type:"lambda"},
@@ -489,6 +776,10 @@ window.example = (function() {
         ]
       ]
     ]
+  example.parseMultiLambda = function parseMultiLambda(str) {
+    var exprs = str.split(";");
+    return exprs.map(e=>example.parseLambda(e));
+  }
   example.parseLambda = function parseLambda(str) {
     i = 0;
     scope = {};
@@ -510,14 +801,19 @@ window.example = (function() {
         case '/': case '\\':
           i++;
           var name = consumeIdentifier()
+          var old = scope[name];
           scope[name] = depth;
           var sub = consume(depth+1);
-          delete scope[name];
+          scope[name] = old;
           return [{type:"lambda"},sub];
           break;
         case "'":
           i++;
           return [consume(depth+1),consume(depth+1)];
+          break;
+        case "\"":
+          i++;
+          return [consume(depth+1),consume(depth+1),consume(depth+1)];
           break;
         case " ": case "\n":
           i++;

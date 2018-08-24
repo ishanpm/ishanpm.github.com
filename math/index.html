@@ -9,8 +9,14 @@
 </head>
 <body ng-app="AppNameHere" ng-controller="MainController">
   <p>{{x}}</p>
-  <textarea ng-model="input" style="width: 90%; height: 10em;"></textarea><button ng-click="setExprLambda(input)">Set</button>
+  <textarea ng-model="input" style="width: 90%; height: 10em;"></textarea><button ng-click="setExprLambda(input)">Set</button><button ng-click="appendExprLambda(input)">Append</button>
+  <div></div>
+  <select ng-model="selectedRule" ng-options="x for x in rules"></select>
+  <button ng-show="showClearButton" ng-click="clearSelection()">Clear</button>
+  <button ng-show="showGoButton" ng-click="doTransform()">Go</button>
+  <label><input type="checkbox" ng-model="keepExprs">Keep expressions after transformation</label>
+  <div></div>
   <p>{{expr1 | exprToString}}</p>
-  <expression expression="expr1" expr-click="onExprClick(expr)"></expression>
+  <expression expression="expr1" expr-click="onExprClick(expr)" expr-control="exprControl = ctrl"></expression>
 </body>
 </html>
