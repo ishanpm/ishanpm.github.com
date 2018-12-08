@@ -1,0 +1,73 @@
+<html><head>
+
+<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+
+<style>
+#canvas {
+  border: 2px inset lightgray
+}
+.desc {
+  display: none;
+}
+</style>
+
+</head><body>
+
+<div>Game: <select id="game-select" onchange="resetGame()">
+<option>Pentago</option>
+<option>Otrio</option>
+<option>Othello</option>
+<option>Quarto</option>
+<option value="QuartoSquare">Quarto (with square matches)</option>
+<option value="ConnectFour">Connect four</option>
+</select></div>
+
+<div class="desc desc-Pentago">Pentago: Place a piece of your color, then rotate one of the four quadrants by one quarter turn. The first to make a line of five wins. (To make a move, click the place you want to put your piece, then the left or right half of the quadrant you want to rotate counterclockwise or clockwise.)</div>
+<div class="desc desc-Otrio">Otrio: Red, green, yellow, and blue take turns playing their pieces onto the board. The first to make three concentric circles, a line of three matching circles, or a line made of a small, medium, and large circle in order wins. Player 1 controls red and yellow, player 2 controls green and blue. Essentially 3D tic-tac-toe.</div>
+<div class="desc desc-Othello">Othello: Flank the opponent's color with your own, flipping the flanked pieces to your own color. Whoever has more of their color by the end wins. Every move must flip at least one piece; if none is available, your turn is skipped.</div>
+<div class="desc desc-Quarto desc-QuartoSquare">Quarto: Place the piece given to you by your opponent, then give your opponent a piece. All pieces can be played by both players. Whoever is first to make a line of four pieces with one or more matching attributes (circle/square, black/white, red/blue, spot/spotless) wins.</div>
+<div class="desc desc-QuartoSquare">Pieces arranged in a 2 by 2 square also count for matches.</div>
+<div class="desc desc-ConnectFour">Connect Four: Place a piece at the bottom of one of the columns. The first to make a line of four wins.</div>
+
+<button onclick="resetGame()">
+reset
+</button>
+<button onclick="thing2()">
+pause CPU
+</button>
+<button onclick="thing3()">
+run CPU
+</button>
+<span id="text"></span>
+
+<div></div>
+
+<canvas id="canvas" width=550 height=450 onclick="humanMove(event.offsetX/50,event.offsetY/50)"></canvas>
+
+<div>Player 1</div>
+<div>Mode: <select id="mode-1">
+<option>CPU</option>
+<option>player</option>
+<option>random</option>
+</select></div>
+<div>Time limit: <input id="limit-time-1" value="1"> second(s)</div>
+<div>Memory limit: <input id="limit-nodes-1" value="1000000"> nodes</div>
+
+<br>
+
+<div>Player 2</div>
+<div>Mode: <select id="mode-2">
+<option>CPU</option>
+<option>player</option>
+<option>random</option>
+</select></div>
+<div>Time limit: <input id="limit-time-2" value="1"> second(s)</div>
+<div>Memory limit: <input id="limit-nodes-2" value="1000000"> nodes</div>
+
+<br>
+
+<label>Pause CPU after move <input type="checkbox" id="pause-after-move"></label>
+<label>Show CPU thoughts <input type="checkbox" id="show-thoughts"></label>
+
+<script src="montecarlo.js"></script>
+</body></html>

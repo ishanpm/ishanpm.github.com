@@ -1,69 +1,3 @@
-<html><head>
-
-<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
-
-<style>
-body {
-  margin: 0px;
-  padding: 0px;
-  overflow: none;
-}
-#canvas {
-  border: 2px inset lightgray
-}
-</style>
-
-</head><body>
-
-<div>Game: <select id="game-select" onchange="resetGame()">
-<option>Pentago</option>
-<option>Otrio</option>
-<option>Othello</option>
-<option>Quarto</option>
-<option>Connect four</option>
-</select></div>
-
-<button onclick="resetGame()">
-reset
-</button>
-<button onclick="thing2()">
-pause CPU
-</button>
-<button onclick="thing3()">
-run CPU
-</button>
-<span id="text"></span>
-
-<div></div>
-
-<canvas id="canvas" width=550 height=450 onclick="humanMove(event.offsetX/50,event.offsetY/50)"></canvas>
-
-<div>Player 1</div>
-<div>Mode: <select id="mode-1">
-<option>CPU</option>
-<option>player</option>
-<option>random</option>
-</select></div>
-<div>Time limit: <input id="limit-time-1" value="1"> second(s)</div>
-<div>Memory limit: <input id="limit-nodes-1" value="1000000"> nodes</div>
-
-<br>
-
-<div>Player 2</div>
-<div>Mode: <select id="mode-2">
-<option>CPU</option>
-<option>player</option>
-<option>random</option>
-</select></div>
-<div>Time limit: <input id="limit-time-2" value="1"> second(s)</div>
-<div>Memory limit: <input id="limit-nodes-2" value="1000000"> nodes</div>
-
-<br>
-
-<label>Pause CPU after move <input type="checkbox" id="pause-after-move"></label>
-
-<script>
-
 var canvas=$("#canvas")
 var cwidth,cheight
 function doResize() {
@@ -240,6 +174,7 @@ class PentagoGameState {
     this.cells=Array(6).fill().map(_=>Array(6).fill(0))
     this.turn=1;
     this.winner=null;
+    this.humanMoveTmp=null;
   }
   
   clone() {
@@ -253,72 +188,94 @@ class PentagoGameState {
   
   // update list of legal moves
   findLegalMoves() {
-    this.legalMoves = [];
+    // constructing large arrays using push() is inefficient
     
     var width=this.cells[0].length;
     var height=this.cells.length;
+    
+    var count = 0
   
-    for (var y=0; y<this.cells.length; y++) {
-      for (var x=0; x<this.cells[0].length; x++) {
-        if (this.cells[y][x]==0) {
-          for (var r=0; r<8; r++) {
-            this.legalMoves.push(x + y*width + width*height*r)
-          }
+    for (var y=0; y<height; y++) {
+      for (var x=0; x<width; x++) {
+        if (this.cells[y][x]===0) {
+          count++
+        }
+      }
+    }
+    
+    this.legalMoves = new Array(count*8);
+    
+    var i = 0;
+    for (var y=0; y<height; y++) {
+      for (var x=0; x<width; x++) {
+        if (this.cells[y][x]===0) {
+          this.legalMoves[i*8  ] = x + width*y
+          this.legalMoves[i*8+1] = x + width*y + width*height
+          this.legalMoves[i*8+2] = x + width*y + width*height*2
+          this.legalMoves[i*8+3] = x + width*y + width*height*3
+          this.legalMoves[i*8+4] = x + width*y + width*height*4
+          this.legalMoves[i*8+5] = x + width*y + width*height*5
+          this.legalMoves[i*8+6] = x + width*y + width*height*6
+          this.legalMoves[i*8+7] = x + width*y + width*height*7
+          i++
         }
       }
     }
   }
   
   // update victory state
-  // side effect: legalMoves is updated
   checkVictory() {
     var that=this
     var cells=this.cells
     
-    this.findLegalMoves()
+    var filled = true
+  
+    for (var y=0; y<this.cells.length && filled; y++) {
+      for (var x=0; x<this.cells[0].length && filled; x++) {
+        if (this.cells[y][x]===0) {
+          filled = false
+        }
+      }
+    }
     
-    if (this.legalMoves.length==0) {
-      this.winner = -1
+    if (filled) {
+      this.winner = -1;
     }
     
     function checkMatch(x,y,dx,dy) {
       var c = cells[y][x]
       
-      if (c==0) {
+      if (c===0) {
         return;
       }
-      // check other 4 cells
-      for (var i=1; i<5; i++) {
-        x+=dx
-        y+=dy
-        if (c!=cells[y][x]) {
-          return;
-        }
-      }
+
+      if (c===cells[y+  dy][x+  dx] &&
+          c===cells[y+2*dy][x+2*dx] &&
+          c===cells[y+3*dy][x+3*dx] &&
+          c===cells[y+4*dy][x+4*dx]) {
       
-      // match was found - set winner
-      if (that.winner===null) {
-        that.winner = c
-      } else if (that.winner!==c) {
-        that.winner = -1
-      }
-    }
-    // check cols and diags
-    for (var x=0; x<cells.length; x++) {
-      for (var y=0; y<cells[0].length-4; y++) {
-        checkMatch(x,y,0,1)
-        if (x<cells.length-4) {
-          checkMatch(x,y,1,1)
-        }
-        if (x>3) {
-          checkMatch(x,y,-1,1)
+        // match was found - set winner
+        if (that.winner===null) {
+          that.winner = c
+        } else if (that.winner!==c) {
+          that.winner = -1
         }
       }
     }
-    // check rows
-    for (var x=0; x<cells.length-4; x++) {
-      for (var y=0; y<cells[0].length; y++) {
-        checkMatch(x,y,1,0)
+    // check matches
+    for (var i=0; i<cells.length; i++) {
+      for (var k=0; k<2; k++) {
+        checkMatch(i,k,0,1)
+        checkMatch(k,i,1,0)
+        if (i<2) {
+          checkMatch(i,k,1,1)
+          checkMatch(cells.length-i-1,k,-1,1)
+        }
+      }
+    }
+    //check diags
+    for (var i=0; i<2; i++) {
+      for (var k=0; k<2; k++) {
       }
     }
   }
@@ -363,7 +320,7 @@ class PentagoGameState {
   
   // make a move
   // side effect: winner and legalMoves are updated
-  move(move) {
+  move(move, fast) {
     var x = move%this.cells[0].length
     move = Math.floor(move/this.cells[0].length)
     var y = move%this.cells.length
@@ -373,6 +330,7 @@ class PentagoGameState {
     
     this.cells[y][x] = this.turn
     
+    // Game ends instantly (no need to rotate) if placing the piece wins
     this.checkVictory()
     if (this.winner === null) {
       this.rotateQuadrant(quad,rot)
@@ -380,7 +338,26 @@ class PentagoGameState {
     this.turn = this.turn%2+1
     
     this.checkVictory()
-    //this.findLegalMoves()
+    if (!fast)
+      this.findLegalMoves()
+  }
+  
+  randomMove(fast) {
+    var opencells = [];
+    var width = this.cells[0].length;
+    var height = this.cells.length;
+  
+    for (var y=0; y<height; y++) {
+      for (var x=0; x<width; x++) {
+        if (this.cells[y][x]===0) {
+          opencells.push(x + y*width)
+        }
+      }
+    }
+    
+    var i = Math.floor(Math.random()*opencells.length)
+    var p = Math.floor(Math.random()*8)
+    this.move(opencells[i] + width*height*p, fast)
   }
 
   playerInput(x,y) {
@@ -441,6 +418,8 @@ class OtrioGameState {
   // update victory state
   // side effect: legalMoves is updated
   checkVictory() {
+    this.winner = null;
+    
     var that=this
     var cells=this.cells
     
@@ -501,7 +480,7 @@ class OtrioGameState {
   }
   
   draw() {
-    ctx.lineWidth=0.05
+    ctx.lineWidth=0.1
     ctx.strokeStyle="black"
     var colors=["#ddd","red","green","yellow","blue"]
     for (var y=0;y<this.cells.length;y++) {
@@ -514,6 +493,8 @@ class OtrioGameState {
     }
 
     // draw player's pieces
+    
+    ctx.lineWidth=0.05
 
     for (var p=0; p<4; p++) {
       ctx.strokeStyle = colors[p+1]
@@ -551,7 +532,7 @@ class OtrioGameState {
     while (this.legalMoves.length === 0 && i<4) {
       this.state = this.state%4+1
       this.turn = this.fourPlayers ? this.state : (this.state-1)%2+1
-      this.findLegalMoves()
+      this.checkVictory()
 
       i++
     }
@@ -1143,43 +1124,50 @@ class MCNode {
   // perform one MCT search step
   simulate() {
     var node = this
+    var state = this.state.clone()
     
     // search for a node with untried moves or a leaf node
     while (node.untriedMoves.length===0 && node.children.length!==0) {
       node = node.selectInteresting()
+      state.move(node.move)
     }
     
     // expand with a child node if possible
     if (node.untriedMoves.length != 0) {
+      var oldTurn = state.turn
+      
       var i = Math.floor(Math.random()*node.untriedMoves.length)
       var move = node.untriedMoves.splice(i,1)[0]
 
-      var newState = node.state.clone()
-      newState.move(move)
-      var newNode = new MCNode(newState)
+      state.move(move)
+      var newNode = new MCNode(state)
+      newNode.state = null;
       node.children.push(newNode)
-      newNode.turn = node.state.turn
+      newNode.turn = oldTurn
       newNode.parent = node
       newNode.move = move
 
       node = newNode
-    } else if (node.state.winner === node.turn) {
+    } else if (state.winner === node.turn) {
       // if a move leads to guranteed victory, always choose it
       node.parent.children = [node]
       node.parent.untriedMoves = []
     }
 
     // play to completion
-    var state = node.state.clone()
     var limit = 100;
     while (state.winner === null && limit > 0) {
-      var i = Math.floor(Math.random()*state.legalMoves.length)
-      var move = state.legalMoves[i]
-      state.move(move)
+      if (state.randomMove) {
+        state.randomMove(true)
+      } else {
+        var i = Math.floor(Math.random()*state.legalMoves.length)
+        var move = state.legalMoves[i]
+        state.move(move, true)
+      }
       limit--
     }
 
-if (limit == 0) console.log("No winner")
+    if (limit == 0) console.log("No winner")
 
     // backpropogate winner info
     // ties (-1) aren't awarded to any player
@@ -1248,13 +1236,21 @@ window.thing1 = function step() {
     var startTime = new Date().getTime();
     var endTime = startTime + 100;
     var playerType = $(`#mode-${game.turn}`)[0].value
+    var drawThoughts = (playerType == "CPU" && $("#show-thoughts")[0].checked)
+    
     awaitHumanMove = false;
     if (playerType == "CPU") {
       do {
         root.simulate()
       } while (new Date().getTime() < endTime)
-      //drawBoard(root.simulate().state)
       root.elapsedTime += new Date().getTime() - startTime;
+
+      if (drawThoughts) {
+        var bestMove = root.getBest().move
+        var tmpBoard = game.clone()
+        tmpBoard.move(bestMove)
+        drawBoard(tmpBoard)
+      }
       if (root.elapsedTime > 1000*$(`#limit-time-${game.turn}`)[0].value
           || root.tries > $(`#limit-nodes-${game.turn}`)[0].value) {
          move = root.getBest().move
@@ -1267,7 +1263,7 @@ window.thing1 = function step() {
     }
     if (move !== null) {
       game.move(move)
-      root = root.findMove(move)
+      root = new MCNode(game.clone()) //root.findMove(move)
       root.parent = null;
       root.elapsedTime = 0;
       drawBoard(game)
@@ -1275,7 +1271,8 @@ window.thing1 = function step() {
         paused=true
     }
   }
-  drawBoard(game)
+  if (!drawThoughts)
+    drawBoard(game)
 }
 window.thing2 = function pause() {
   paused=true
@@ -1289,12 +1286,19 @@ window.thing3 = function start() {
 window.resetGame = function reset() {
   var gameName = $("#game-select")[0].value
 
+  $(".desc").hide()
+  $(`.desc-${gameName}`).show()
+  
   switch (gameName) {
     case "Pentago": game = new PentagoGameState(); break;
     case "Otrio": game = new OtrioGameState(); break;
     case "Othello": game = new OthelloGameState(); break;
     case "Quarto": game = new QuartoGameState(); break;
-    case "Connect four": game = new ConnectFourGameState(); break;
+    case "QuartoSquare":
+      game = new QuartoGameState()
+      game.matchSquares=true;
+      break;
+    case "ConnectFour": game = new ConnectFourGameState(); break;
   }
   //game.matchSquares = true;
   game.findLegalMoves()
@@ -1332,8 +1336,6 @@ function loop() {
 
 window.awaitHumanMove = false;
 
-paused = true;
+paused = false;
 resetGame()
-//loop()
-
-</script></body></html>
+loop()
