@@ -5,6 +5,8 @@ Or, perhaps, you'd like to see my [colorful AI ecosystem](/color-ai).
 
 [This page](/math) contains some nonsense about lambda calculus. Eventually, it'll be a full-fledged interactive theorem prover (hopefully).
 
+Here's a little [Monte Carlo board game AI](/montecarlo) that can play a few board games. See if you can beat it at Pentago!
+
 I made a cellular automaton called [Pulse2](https://github.com/ishanpm/pulse-ca), and then I made a [modular microprocessor unit](https://github.com/ishanpm/pulse-ca/wiki/Pulse2-processor) in that.
 
 My [itch.io page](https://woofmao.itch.io) has some of my other games.
