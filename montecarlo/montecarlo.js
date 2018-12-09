@@ -296,6 +296,13 @@ class PentagoGameState {
         } 
       }
     }
+    
+    if (this.humanMoveTmp !== null) {
+      var x=this.humanMoveTmp%this.cells[0].length;
+      var y=Math.floor(this.humanMoveTmp/this.cells[0].length);
+      ctx.strokeStyle = "red";
+      ctx.strokecirc(x+0.5,y+0.5,0.4)
+    }
   }
   
   rotateQuadrant(q,a) {
@@ -908,6 +915,7 @@ class QuartoGameState {
   }
 
   playerInput(x,y) {
+    if ((x>=4) ^ (this.chosenPiece === null)) return null;
     var x1 = Math.floor(x)%4
     var y1 = Math.floor(y)
     return x1 + this.cells[0].length*y1
@@ -1053,18 +1061,25 @@ class MCNode {
     this.wins = 0;
     this.tries = 0;
     this.interest = 10;
+    this.invertWin = $("#invert-win")[0].checked;
   }
   
   update(winner) {
     this.tries++
     if (winner === -1 || winner === null) this.ties++;
 
-    if (winner === this.turn) {
-      this.wins++
+    if (this.invertWin) {
+      if (winner !== this.turn && winner !== -1) {
+        this.wins++
+      }
+    } else {
+      if (winner === this.turn) {
+        this.wins++
+      }
     }
-    if (this.parent !== null) {
-      this.interest = this.wins/this.tries + 0.5*Math.sqrt(Math.log(this.parent.tries)/this.tries)
-    }
+    //if (this.parent !== null) {
+      //this.interest = this.wins/this.tries + 0.5*Math.sqrt(Math.log(this.parent.tries)/this.tries)
+    //}
   }
   
   // select a child node ripe for the searchin'
@@ -1072,12 +1087,16 @@ class MCNode {
     // why doesn't JS have a builtin for this
     
     var res = this.children[0];
-    var bestScore = this.children[0].interest;
+    var logTries = Math.log(this.tries);
+    var candidate = this.children[0]
+    var bestScore = candidate.wins/candidate.tries + 0.5*Math.sqrt(logTries/candidate.tries);
     
     for (var i=1; i<this.children.length; i++) {
-      if (this.children[i].interest > bestScore) {
+      candidate = this.children[i]
+      var interest = candidate.wins/candidate.tries + 0.5*Math.sqrt(logTries/candidate.tries)
+      if (interest > bestScore) {
         res = this.children[i];
-        bestScore = this.children[i].interest;
+        bestScore = interest;
       }
     }
     
@@ -1148,29 +1167,36 @@ class MCNode {
       newNode.move = move
 
       node = newNode
-    } else if (state.winner === node.turn) {
+    } else if ((!this.invertWin && state.winner === node.turn) || 
+               (this.invertWin && state.winner !== node.turn && state.winner !== -1)) {
       // if a move leads to guranteed victory, always choose it
       node.parent.children = [node]
       node.parent.untriedMoves = []
     }
 
     // play to completion
-    var limit = 100;
-    while (state.winner === null && limit > 0) {
-      if (state.randomMove) {
+    var limit = 0;
+    if (state.randomMove) {
+      while (state.winner === null && limit < 1000) {
         state.randomMove(true)
-      } else {
+        limit++;
+      }
+    } else {
+      while (state.winner === null && limit < 1000) {
         var i = Math.floor(Math.random()*state.legalMoves.length)
         var move = state.legalMoves[i]
         state.move(move, true)
+        limit++;
       }
-      limit--
     }
 
-    if (limit == 0) console.log("No winner")
+    if (limit === 1000) {
+      console.log("No winner")
+    }
 
     // backpropogate winner info
-    // ties (-1) aren't awarded to any player
+    // ties (-1) aren't awarded to either player
+    
     var node2 = node
     while (node2 !== null) {
       node2.update(state.winner)
@@ -1262,11 +1288,7 @@ window.thing1 = function step() {
       move = game.legalMoves[Math.floor(Math.random()*game.legalMoves.length)]
     }
     if (move !== null) {
-      game.move(move)
-      root = new MCNode(game.clone()) //root.findMove(move)
-      root.parent = null;
-      root.elapsedTime = 0;
-      drawBoard(game)
+      makeMove(move)
       if ($("#pause-after-move")[0].checked)
         paused=true
     }
@@ -1283,6 +1305,29 @@ window.thing3 = function start() {
     loop()
   }
 }
+
+window.undoGame = function undo() {
+  if (gameHistory.length>0) {
+    gameUndoHistory.push(game.clone())
+    game = gameHistory.pop();
+    root = new MCNode(game.clone()) //root.findMove(move)
+    root.parent = null;
+    root.elapsedTime = 0;
+    drawBoard(game);
+  }
+}
+
+window.redoGame = function redo() {
+  if (gameUndoHistory.length>0) {
+    gameHistory.push(game.clone())
+    game = gameUndoHistory.pop();
+    root = new MCNode(game.clone()) //root.findMove(move)
+    root.parent = null;
+    root.elapsedTime = 0;
+    drawBoard(game);
+  }
+}
+
 window.resetGame = function reset() {
   var gameName = $("#game-select")[0].value
 
@@ -1308,6 +1353,8 @@ window.resetGame = function reset() {
   rootState.checkVictory()
   root = new MCNode(rootState);
   root.elapsedTime = 0;
+  gameHistory = [];
+  gameUndoHistory = [];
   
   drawBoard(game)
 }
@@ -1317,13 +1364,25 @@ window.humanMove = function humanMove(x,y) {
     var move = game.playerInput(x,y)
     
     if (move !== null && game.legalMoves.indexOf(move) > -1) {
-      awaitHumanMove = false;
-      game.move(move)
-      root = root.findMove(move)
-      root.elapsedTime = 0;
+      makeMove(move)
     }
   }
   drawBoard(game)
+}
+
+function makeMove(move) {
+  game.findLegalMoves()
+  game.checkVictory()
+  if (game.winner === null && move !== null && game.legalMoves.indexOf(move) > -1) {
+    gameHistory.push(game.clone())
+    gameUndoHistory = [];
+    awaitHumanMove = false;
+    game.move(move)
+    root = new MCNode(game.clone()) //root.findMove(move)
+    root.parent = null;
+    root.elapsedTime = 0;
+    drawBoard(game)
+  }
 }
 
 function loop() {
@@ -1335,6 +1394,8 @@ function loop() {
 }
 
 window.awaitHumanMove = false;
+gameHistory = [];
+gameUndoHistory = [];
 
 paused = false;
 resetGame()
