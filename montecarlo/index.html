@@ -29,15 +29,11 @@
 <div class="desc desc-QuartoSquare">Pieces arranged in a 2 by 2 square also count for matches.</div>
 <div class="desc desc-ConnectFour">Connect Four: Place a piece at the bottom of one of the columns. The first to make a line of four wins.</div>
 
-<button onclick="resetGame()">
-reset
-</button>
-<button onclick="thing2()">
-pause CPU
-</button>
-<button onclick="thing3()">
-run CPU
-</button>
+<button onclick="resetGame()">reset</button>
+<button onclick="undoGame()">undo</button>
+<button onclick="redoGame()">redo</button>
+<button onclick="thing2()">pause CPU</button>
+<button onclick="thing3()">run CPU</button>
 <span id="text"></span>
 
 <div></div>
@@ -50,7 +46,7 @@ run CPU
 <option>player</option>
 <option>random</option>
 </select></div>
-<div>Time limit: <input id="limit-time-1" value="1"> second(s)</div>
+<div>Time limit: <input id="limit-time-1" value="2"> second(s)</div>
 <div>Memory limit: <input id="limit-nodes-1" value="1000000"> nodes</div>
 
 <br>
@@ -61,13 +57,14 @@ run CPU
 <option>player</option>
 <option>random</option>
 </select></div>
-<div>Time limit: <input id="limit-time-2" value="1"> second(s)</div>
+<div>Time limit: <input id="limit-time-2" value="2"> second(s)</div>
 <div>Memory limit: <input id="limit-nodes-2" value="1000000"> nodes</div>
 
 <br>
 
 <label>Pause CPU after move <input type="checkbox" id="pause-after-move"></label>
 <label>Show CPU thoughts <input type="checkbox" id="show-thoughts"></label>
-
+<div></div>
+<label>Invert win condition <input type="checkbox" id="invert-win"></label>
 <script src="montecarlo.js"></script>
 </body></html>
