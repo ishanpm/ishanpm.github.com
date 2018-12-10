@@ -1089,11 +1089,11 @@ class MCNode {
     var res = this.children[0];
     var logTries = Math.log(this.tries);
     var candidate = this.children[0]
-    var bestScore = candidate.wins/candidate.tries + 0.5*Math.sqrt(logTries/candidate.tries);
+    var bestScore = (candidate.wins+candidate.ties*0.2)/candidate.tries + 0.5*Math.sqrt(logTries/candidate.tries);
     
     for (var i=1; i<this.children.length; i++) {
       candidate = this.children[i]
-      var interest = candidate.wins/candidate.tries + 0.5*Math.sqrt(logTries/candidate.tries)
+      var interest = candidate.wins/candidate.tries + 1*Math.sqrt(logTries/candidate.tries)
       if (interest > bestScore) {
         res = this.children[i];
         bestScore = interest;
@@ -1189,9 +1189,12 @@ class MCNode {
         limit++;
       }
     }
+    
+    var winner = state.winner;
 
-    if (limit === 1000) {
+    if (winner === null) {
       console.log("No winner")
+      winner = -1;
     }
 
     // backpropogate winner info
@@ -1199,7 +1202,7 @@ class MCNode {
     
     var node2 = node
     while (node2 !== null) {
-      node2.update(state.winner)
+      node2.update(winner)
       node2 = node2.parent
     }
     

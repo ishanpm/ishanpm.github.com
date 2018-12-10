@@ -22,12 +22,18 @@
 <option value="ConnectFour">Connect four</option>
 </select></div>
 
-<div class="desc desc-Pentago">Pentago: Place a piece of your color, then rotate one of the four quadrants by one quarter turn. The first to make a line of five wins. (To make a move, click the place you want to put your piece, then the left or right half of the quadrant you want to rotate counterclockwise or clockwise.)</div>
-<div class="desc desc-Otrio">Otrio: Red, green, yellow, and blue take turns playing their pieces onto the board. The first to make three concentric circles, a line of three matching circles, or a line made of a small, medium, and large circle in order wins. Player 1 controls red and yellow, player 2 controls green and blue. Essentially 3D tic-tac-toe.</div>
-<div class="desc desc-Othello">Othello: Flank the opponent's color with your own, flipping the flanked pieces to your own color. Whoever has more of their color by the end wins. Every move must flip at least one piece; if none is available, your turn is skipped.</div>
-<div class="desc desc-Quarto desc-QuartoSquare">Quarto: Place the piece given to you by your opponent, then give your opponent a piece. All pieces can be played by both players. Whoever is first to make a line of four pieces with one or more matching attributes (circle/square, black/white, red/blue, spot/spotless) wins.</div>
-<div class="desc desc-QuartoSquare">Pieces arranged in a 2 by 2 square also count for matches.</div>
-<div class="desc desc-ConnectFour">Connect Four: Place a piece at the bottom of one of the columns. The first to make a line of four wins.</div>
+<p class="desc desc-Pentago">Pentago: Place a piece of your color, then rotate one of the four quadrants by one quarter turn. The first to make a line of five wins. (To make a move, click the place you want to put your piece, then the left or right half of the quadrant you want to rotate counterclockwise or clockwise.)</p>
+<p class="desc desc-Otrio">Otrio: Red, green, yellow, and blue take turns playing their pieces onto the board. The first to make three concentric circles, a line of three matching circles, or a line made of a small, medium, and large circle in order wins. Player 1 controls red and yellow, player 2 controls green and blue. Essentially 3D tic-tac-toe.</p>
+<p class="desc desc-Othello">Othello: Flank the opponent's color with your own, flipping the flanked pieces to your own color. Whoever has more of their color by the end wins. Every move must flip at least one piece; if none is available, your turn is skipped.</p>
+<p class="desc desc-Quarto desc-QuartoSquare">Quarto: Place the piece given to you by your opponent, then give your opponent a piece. All pieces can be played by both players. Whoever is first to make a line of four pieces with one or more matching attributes (circle/square, black/white, red/blue, spot/spotless) wins.</p>
+<p class="desc desc-QuartoSquare">Pieces arranged in a 2 by 2 square also count for matches.</p>
+<p class="desc desc-ConnectFour">Connect Four: Place a piece at the bottom of one of the columns. The first to make a line of four wins.</p>
+<!-- planned games
+<p class="desc desc-Khet">Pick a piece, rotate it a quarter turn or move it to one of the 8 adjacent squares, then shoot your laser and remove the piece it hits. Pieces can't be moved onto the opposite color squares. Double mirrors and splitters can also trade places with any adjacent single mirror or blocker. Two allied blockers can stack together, and be moved as a whole. Whhoever loses their "pharoah" loses.</p>
+<p class="desc desc-Checkers">Checkers: Move one diagonal square forward, or jump over an opponent piece to capture. If you can capture, you must. Pieces that have reached the end of the board can move backwards also.</p>
+<p class="desc desc-Chess">Yeah, you'd better just read the rules.</p>
+-->
+
 
 <button onclick="resetGame()">reset</button>
 <button onclick="undoGame()">undo</button>
@@ -46,7 +52,7 @@
 <option>player</option>
 <option>random</option>
 </select></div>
-<div>Time limit: <input id="limit-time-1" value="2"> second(s)</div>
+<div>Time limit: <input id="limit-time-1" value="3"> second(s)</div>
 <div>Memory limit: <input id="limit-nodes-1" value="1000000"> nodes</div>
 
 <br>
@@ -57,7 +63,7 @@
 <option>player</option>
 <option>random</option>
 </select></div>
-<div>Time limit: <input id="limit-time-2" value="2"> second(s)</div>
+<div>Time limit: <input id="limit-time-2" value="3"> second(s)</div>
 <div>Memory limit: <input id="limit-nodes-2" value="1000000"> nodes</div>
 
 <br>
@@ -66,5 +72,12 @@
 <label>Show CPU thoughts <input type="checkbox" id="show-thoughts"></label>
 <div></div>
 <label>Invert win condition <input type="checkbox" id="invert-win"></label>
+
+<br>
+<br>
+
+<p>The CPU player uses a <a href="https://en.wikipedia.org/wiki/Monte_Carlo_tree_search">Monte Carlo tree search</a> algorithm to determine its next move. Two nice advantages of this algorithm are that it can be stopped at any time and still make a move, and that it requires no information about the game aside from the legal moves. However, it is sometimes bad at blocking the opponent's moves, and it doesn't strategize very much in the early game.</p>
+<p>The numbers next to the current turn indicate how likely it thinks it's victory is, as a ratio of victories to the number of simulated games. The numbers in parenthesis indicate the same for its next move. In order to make a decent move, it should fully explore at least one move, so the last number should reach around 400 for Pentago. If it doesn't go that high, you might need to give it more time.</p>
+
 <script src="montecarlo.js"></script>
 </body></html>
