@@ -990,7 +990,7 @@ class ConnectFourGameState {
     for (var x=0; x<cells[0].length; x++) {
       for (var y=0; y<cells.length-3; y++) {
         checkMatch(x,y,0,1)
-        if (x<cells.length-3) {
+        if (x<cells[0].length-3) {
           checkMatch(x,y,1,1)
         }
         if (x>2) {
