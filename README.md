@@ -14,7 +14,7 @@ I also have a Scratch account. Two, actually: [Qwertyperson](https://scratch.mit
 
 ## Incomplete/outdated
 
-[Here's a blue circle.](/linearlogic) What does it do? Well, you can do linear logic with it. How? No one knows. (This will eventually be a game with a tutorial and instructions, but in the meantime you get no explanation whatsoever)
+[Here's a blue circle.](/linearlogicgame) What does it do? Well, you can do linear logic with it. How? No one knows. [Source code here.](https://github.com/ishanpm/linearlogicgame) (This will eventually be a game with a tutorial and instructions, but in the meantime you get no explanation whatsoever.) 
 
 [This page](/math) contains some nonsense about lambda calculus. Eventually, it'll be a full-fledged interactive theorem prover (hopefully).
 
