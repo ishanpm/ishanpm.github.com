@@ -1050,10 +1050,10 @@ class ConnectFourGameState {
 class MCNode {
   // expects state to be fully initialized
   // i.e. legalMoves and winner set
-  constructor(state) {
+  constructor(state, parent) {
     this.state = state;
     this.children = [];
-    this.parent = null;
+    this.parent = parent || null;
     this.untriedMoves = state.winner===null ? state.legalMoves : [];
     
     this.turn = state.turn;
@@ -1061,7 +1061,11 @@ class MCNode {
     this.wins = 0;
     this.tries = 0;
     this.interest = 10;
-    this.invertWin = $("#invert-win")[0].checked;
+    if (parent) {
+      this.invertWin = parent.invertWin;
+    } else {
+      this.invertWin = $("#invert-win")[0].checked;
+    }
   }
   
   update(winner) {
@@ -1131,10 +1135,9 @@ class MCNode {
     var newState = this.state.clone()
     newState.findLegalMoves()
     newState.move(move)
-    var newNode = new MCNode(newState)
+    var newNode = new MCNode(newState, this)
     this.children.push(newNode)
     newNode.turn = this.state.turn
-    newNode.parent = this
     newNode.move = move
     
     return newNode;
@@ -1159,11 +1162,10 @@ class MCNode {
       var move = node.untriedMoves.splice(i,1)[0]
 
       state.move(move)
-      var newNode = new MCNode(state)
+      var newNode = new MCNode(state, node)
       newNode.state = null;
       node.children.push(newNode)
       newNode.turn = oldTurn
-      newNode.parent = node
       newNode.move = move
 
       node = newNode
@@ -1201,7 +1203,7 @@ class MCNode {
     // ties (-1) aren't awarded to either player
     
     var node2 = node
-    while (node2 !== null) {
+    while (node2) {
       node2.update(winner)
       node2 = node2.parent
     }
