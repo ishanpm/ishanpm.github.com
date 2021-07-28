@@ -16,7 +16,9 @@ I also have a Scratch account. Two, actually: [Qwertyperson](https://scratch.mit
 
 ## Incomplete/outdated
 
-[I'm making a programming language!](/PiCal) It's about Pi Calculus. It's mostly an experiment with how primitive you can go and still feel like you're actually programming, so don't write an OS in it (or maybe do). You may want to read the [readme.](https://github.com/ishanpm/PiCal)
+I'm practicing formal proofs by writing a [list of theorems in linear logic and pi calculus.](/metamathlinear) They're two great flavors that go great together. I'm not sure if the system I'm using is consistent, but it seems interesting so far.
+
+[I'm making a programming language!](/PiCal) It's about Pi Calculus. It's mostly an experiment with how primitive you can go and still feel like you're actually programming, so don't write an OS in it (or maybe do). Also the garbage collector is super glitchy.You may want to read the [readme.](https://github.com/ishanpm/PiCal)
 
 [Here's a blue circle.](/linearlogicgame) What does it do? Well, you can do linear logic with it. How? No one knows. [Source code here.](https://github.com/ishanpm/linearlogicgame) (This will eventually be a game with a tutorial and instructions, but in the meantime you get no explanation whatsoever.) 
 
