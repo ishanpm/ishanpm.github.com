@@ -1472,7 +1472,7 @@ class MCNode {
   // new version of update() uses evaluation rather than winner/loser
   // evaluation is scaled according to the player whose turn it is
   update(winner, evaluation) {
-    let scaledEval = evaluation[this.turn];
+    let scaledEval = evaluation[this.turn + 1];
     
     this.tries++
     if (winner === -1 || winner === null) {
@@ -1489,7 +1489,7 @@ class MCNode {
       //this.interest = this.wins/this.tries + 0.5*Math.sqrt(Math.log(this.parent.tries)/this.tries)
       var prevturn = this.parent.turn
       
-      scaledEval = evaluation[this.parent.turn];
+      scaledEval = evaluation[this.parent.turn + 1];
       
       if (this.invertWin) {
         scaledEval = 1-scaledEval;
