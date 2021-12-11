@@ -11,39 +11,54 @@ var ctx=canvas[0].getContext("2d")
 
 class GoGameState {
   constructor() {
-    this.cells = Array(9).fill().map(e=>Array(9).fill(0))
-    this.turn = 1
-    this.winner = null
-    this.count = 0
+    this.width = 9;
+    this.height = 9;
+    this.cells = Array(this.height).fill().map(e=>Array(this.width).fill(0));
+    this.turn = 1;
+    this.winner = null;
+    this.count = 0;
+    this.passCount = 0;
+    //this.hashes = new Set();
+    this.captureColor = 0;
+    this.isSpeculative = false;
+    this.isSpeedy = false;
+    this.hash = 0;
+    this.score = 0;
+    this.parent = null;
   }
   
   clone(fast) {
     var result = new GoGameState()
+    result.width = this.width;
+    result.height = this.height;
     result.cells = this.cells.map(e=>e.map(e=>e))
     result.turn = this.turn
     result.winner = this.winner
     result.count = this.count
+    result.passCount = this.passCount;
+    result.isSpeedy = this.isSpeedy;
+    result.parent = this;
     if (!fast) {
-      result.findLegalMoves()
-      result.checkVictory()
+      result.update()
     }
     return result;
   }
   
+  update() {
+    if (!this.isSpeculative) {
+      this.findLegalMoves()
+      this.checkVictory()
+    }
+    this.hash = this.getHash();
+  }
+  
   checkVictory() {
-    var territory = {1:0, 2:0}
-    if (this.count > 100) {
-      for (var y=0;y<this.cells.length;y++) {
-        for (var x=0;x<this.cells[0].length;x++) {
-          if (this.cells[y][x]!=0) {
-						territory[this.cells[y][x]]++;
-          }
-        }
-      }
+    if (this.passCount >= 2 || (this.isSpeedy && this.count > 50)) {
+      this.countScore();
       
-      if (territory[1] > territory[2]) {
+      if (this.score > 0) {
         this.winner = 1;
-      } else if (territory[1] < territory[2]) {
+      } else if (this.score < 0) {
         this.winner = 2;
       } else {
         this.winner = -1;
@@ -51,28 +66,104 @@ class GoGameState {
     }
   }
   
+  countScore() {
+    let territory = {1:0, 2:0}
+    
+    let child = this.clone(true);
+    child.isSpeculative = true;
+    
+    for (var y=0; y<child.height; y++) {
+      for (var x=0; x<child.width; x++) {
+        if (child.cells[y][x] === 0) {
+          if (child.isSurrounded(x, y, 1)) {
+            child.fill(x, y, 1);
+          } else if (child.isSurrounded(x, y, 2)) {
+            child.fill(x, y, 2);
+          } else {
+            child.fill(x, y, -1);
+          }
+        }
+          
+        if (child.cells[y][x] > 0) {
+          territory[child.cells[y][x]]++;
+        }
+      }
+    }
+    
+    this.score = territory[1] - territory[2];
+  }
+  
+  getEvaluation() {
+    this.countScore();
+    
+    let ev = Math.atan(this.score/5) / (Math.PI);
+    
+    // Flip evaluation for second player
+    //if (this.turn === 2) ev = -ev;
+    
+    return [ev + 0.5, 1-(ev + 0.5)];
+  }
+  
   findLegalMoves() {
-    this.legalMoves = [];
-    for (var x=0;x<this.cells[0].length;x++) {
-      for (var y=0;y<this.cells.length;y++) {
-        if (this.cells[y][x]==0) {
-          this.legalMoves.push(x + y*this.cells[0].length)
+    this.legalMoves = [-1];
+    
+    if (this.isSpeedy) {
+      // Allow any move onto open spaces
+      for (var x=0; x<this.width; x++) {
+        for (var y=0; y<this.height; y++) {
+          if (this.cells[y][x] !== 0) {
+            this.legalMoves.push(x + y*this.width)
+          }
+        }
+      }
+    } else {
+      // Forbid repitition and suicide
+      for (var x=0; x<this.width; x++) {
+        for (var y=0; y<this.height; y++) {
+          if (this.tryMove(x, y)) {
+            this.legalMoves.push(x + y*this.width)
+          }
         }
       }
     }
   }
   
+  // Helper function: Determine if a move is legal
+  // (played on an empty space, no suicide, no repeats)
+  tryMove(x, y) {
+    // Played on an empty space?
+    if (this.cells[y][x] !== 0) return false;
+    
+    // Shortcut for no suicide & no repeats
+    if (
+      this.getColor(x+1,y) === 0 ||
+      this.getColor(x-1,y) === 0 ||
+      this.getColor(x,y+1) === 0 ||
+      this.getColor(x,y-1) === 0) {
+        return true
+    };
+    
+    // Check suicide and repeats
+    let child = this.clone(true);
+    child.isSpeculative = true;
+    child.move(x + y*this.width);
+    return (child.captureColor !== this.turn) && (!child.isRepeatedPosition());
+  }
+  
   isSurrounded(x,y,color) {
-    if (this.cells[y][x] == 0) {return false}
-    var checked = {};
-    var cells = this.cells
-    var base = this.cells[y][x]
+    let width = this.width;
+    let height = this.height;
+    
+    var checked = new Set();
+    var cells = this.cells;
+    var base = this.cells[y][x];
+    
     
     function surr2(x,y) {
-      if (checked[y] === undefined) checked[y] = {}
-      if (checked[y][x] || cells[y] === undefined || cells[y][x] === undefined) {return true}
+      if (x < 0 || y < 0 || x >= width || y >= width) return true;
+      if (checked.has(x + y*width)) return true;
       
-      checked[y][x] = true;
+      checked.add(x + y*width);
       
       if (cells[y][x] != base) {
         if (color) {
@@ -82,11 +173,11 @@ class GoGameState {
         }
       }
       
-      var result=
+      var result = (
         surr2(x-1,y) &&
         surr2(x+1,y) &&
         surr2(x,y-1) &&
-        surr2(x,y+1)
+        surr2(x,y+1));
       return result;
     }
     
@@ -97,13 +188,14 @@ class GoGameState {
     if (this.cells[y][x] == color) {return false}
     var cells = this.cells
     var base = this.cells[y][x]
+    var width = this.width;
+    var height = this.height;
     
     function fill2(x,y) {
-      if (cells[y]===undefined || cells[y][x]===undefined || cells[y][x] != base) {
-        return;
-      }
+      if (x < 0 || y < 0 || x >= width || y >= height) return;
+      if (cells[y][x] !== base) return;
       
-      cells[y][x] = color
+      cells[y][x] = color;
       
       fill2(x-1,y)
       fill2(x+1,y)
@@ -115,7 +207,7 @@ class GoGameState {
   }
   
   fillIfColorAndSurrounded(x,y,color) {
-    if (this.cells[y] === undefined || this.cells[y][x] == undefined) return;
+    if (x < 0 || y < 0 || x >= this.width || y >= this.height) return;
     if (color === null) {
       if (this.cells[y][x] === 0) return;
     } else {
@@ -124,17 +216,18 @@ class GoGameState {
     if (!this.isSurrounded(x,y)) return;
     
     this.fill(x,y,0)
+    this.captureColor = color;
   }
   
   draw() {
     ctx.lineWidth=0.05
     ctx.strokeStyle="black"
     for (var x=0;x<this.cells[0].length;x++) {
-      line(x+0.5,0,x+0.5,this.cells.length)
+      line(x+0.5,0,x+0.5,this.height)
     }
-    for (var y=0;y<this.cells.length;y++) {
-      line(0,y+0.5,this.cells[0].length,y+0.5)
-      for (var x=0;x<this.cells[0].length;x++) {
+    for (var y=0;y<this.height;y++) {
+      line(0,y+0.5,this.width,y+0.5)
+      for (var x=0;x<this.width;x++) {
         if (this.cells[y][x] > 0) {
           ctx.fillStyle = this.cells[y][x]==1 ? "black" : "white"
           ctx.fillcirc(x+0.5,y+0.5,0.4)
@@ -142,30 +235,121 @@ class GoGameState {
         } 
       }
     }
+    
+    
+    if (this.passCount > 0) {
+      ctx.fillStyle = "black";
+      ctx.beginPath();
+      ctx.moveTo(this.width + 0.5, 0.5);
+      ctx.lineTo(this.width + 1  , 1  );
+      ctx.lineTo(this.width + 0.5, 1.5);
+      ctx.closePath();
+      ctx.fill();
+    }
+    
+    if (this.winner !== null) {
+      ctx.save();
+      ctx.translate(this.width + 0.25, 2.5);
+      ctx.scale(.3, .3);
+      ctx.fillStyle = "black";
+      ctx.font = '1px sans-serif';
+      ctx.fillText(`Difference:`, 0, 0)
+      ctx.fillText(`${this.score}`, 0, 1.5)
+      ctx.restore();
+    }
   }
   
   move(move) {
+    if ((!this.isSpeculative) && this.legalMoves.indexOf(move) === -1) return false;
+    
+    if (move == -1) {
+      this.passCount ++;
+      this.turn = this.turn%2 + 1;
+      if (this.isSpeedy) this.count++;
+      
+      this.update();
+      
+      return;
+    }
+    
+    this.passCount = 0;
+    
     var x = move%this.cells[0].length
     var y = Math.floor(move/this.cells[0].length)
     
+    this.captureColor = 0;
     this.cells[y][x] = this.turn
     
     this.turn = this.turn%2 + 1
     
-    this.count++
+    if (this.isSpeedy) this.count++
     
     this.fillIfColorAndSurrounded(x-1,y,this.turn)
     this.fillIfColorAndSurrounded(x+1,y,this.turn)
     this.fillIfColorAndSurrounded(x,y-1,this.turn)
     this.fillIfColorAndSurrounded(x,y+1,this.turn)
-    this.fillIfColorAndSurrounded(x-1,y)
-    this.fillIfColorAndSurrounded(x+1,y)
-    this.fillIfColorAndSurrounded(x,y-1)
-    this.fillIfColorAndSurrounded(x,y+1)
-    this.fillIfColorAndSurrounded(x,y)
+    //this.fillIfColorAndSurrounded(x-1,y)
+    //this.fillIfColorAndSurrounded(x+1,y)
+    //this.fillIfColorAndSurrounded(x,y-1)
+    //this.fillIfColorAndSurrounded(x,y+1)
+    this.fillIfColorAndSurrounded(x,y, this.turn%2+1);
     
-    this.checkVictory()
-    this.findLegalMoves()
+    this.update();
+  }
+
+  playerInput(x,y) {
+    x = Math.floor(x);
+    y = Math.floor(y);
+    
+    // Pass
+    if (x >= this.width) return -1;
+    
+    if (x < 0 || y < 0 || x >= this.width || y >= this.height)
+      return null;
+    return x + this.width*y;
+  }
+  
+  getColor(x,y) {
+    if (x < 0 || y < 0 || x >= this.width || y >= this.height) return -1;
+    
+    return this.cells[y][x];
+  }
+  
+  getHash() {
+    let val = this.turn;
+    
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        val = (val*3 + this.cells[y][x]) % 1e15;
+      }
+    }
+    
+    return val;
+  }
+  
+  isRepeatedPosition() {
+    let p = this.parent;
+    while (p) {
+      if (this.hash === p.hash && this.boardEquals(p)) {
+        return true;
+      }
+      p = p.parent;
+    }
+    
+    return false;
+  }
+  
+  // Helper function
+  boardEquals(other) {
+    if (this.turn !== other.turn) return false;
+    
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        if (this.cells[y][x] !== other.cells[y][x]) return false;
+      }
+    }
+    
+    return true;
   }
 }
 
@@ -350,21 +534,25 @@ class PentagoGameState {
   }
   
   randomMove(fast) {
-    var opencells = [];
+    var selection = null;
+    var count = 0;
     var width = this.cells[0].length;
     var height = this.cells.length;
   
     for (var y=0; y<height; y++) {
       for (var x=0; x<width; x++) {
         if (this.cells[y][x]===0) {
-          opencells.push(x + y*width)
+          count++;
+          if (Math.random() < 1/count)
+            selection = x + y*width;
         }
       }
     }
     
-    var i = Math.floor(Math.random()*opencells.length)
-    var p = Math.floor(Math.random()*8)
-    this.move(opencells[i] + width*height*p, fast)
+    if (selection !== null) {
+      var p = Math.floor(Math.random()*8)
+      this.move(selection + width*height*p, fast)
+    }
   }
 
   playerInput(x,y) {
@@ -893,9 +1081,10 @@ class QuartoGameState {
   // side effect: winner and legalMoves are updated
   move(move) {
     if (this.legalMoves.indexOf(move) == -1) {
+      debugger;
       console.error("ILLEGAL MOVEEEEE!!!! "+move)
     }
-
+    
     if (this.chosenPiece === null) {
       this.chosenPiece = move;
       var i = this.pieces.indexOf(move);
@@ -1047,6 +1236,184 @@ class ConnectFourGameState {
   }
 }
 
+class CheckersGameState {
+  constructor() {
+    // Board is staggered - Row 0 is top, shifted right
+    this.cells=Array(8).fill().map((e,i)=>Array(4).fill(e=i<3 ? 2 : i>=5 ? 1 : 0))
+    this.turn=1;
+    this.winner=null;
+  }
+  
+  clone() {
+    var result = new CheckersGameState()
+    result.cells = this.cells.map(e=>e.map(e=>e))
+    result.turn = this.turn;
+    result.checkVictory();
+    result.findLegalMoves();
+    return result;
+  }
+  
+  // update list of legal moves
+  findLegalMoves() {
+    this.legalMoves = [];
+    
+    var width=this.cells[0].length;
+    var height=this.cells.length;
+    
+    // Find captures
+    
+    for (var y=0; y<this.cells.length; y++) {
+      for (var x=0; x<this.cells[0].length; x++) {
+        if (this.cells[y][x]==0 && this.findMatches(x,y)) {
+          var move = [];
+        }
+      }
+    }
+  }
+  
+  // update victory state
+  // side effect: legalMoves is updated
+  checkVictory() {
+    this.findLegalMoves()
+
+    if (this.legalMoves.length !== 0) {
+      this.winner = null;
+      return;
+    }
+    
+    var count = 0;
+    for (var y=0; y<this.cells.length; y++) {
+      for (var x=0; x<this.cells[0].length; x++) {
+        if (this.cells[y][x] == 1) {
+          count++;
+        } else if (this.cells[y][x] == 2) {
+          count--;
+        }
+      }
+    }
+
+    if (count > 0) {
+      this.winner = 1;
+    } else if (count < 0) {
+      this.winner = 2;
+    } else {
+      this.winner = -1;
+    }
+  }
+
+  findMatches(x,y,mode) {
+    var turn = this.turn;
+    var opponent = turn%2+1;
+    var cells = this.cells;
+
+    function findLine(dx, dy) {
+      var x1=x+dx, y1=y+dy
+      var run=0
+      while (cells[y1] && cells[y1][x1] === opponent) {
+        x1+=dx;
+        y1+=dy;
+        run++;
+      }
+      if (cells[y1] && cells[y1][x1] === turn) {
+        if (mode) {
+          var x1=x+dx, y1=y+dy
+          x1=x+dx; y1=y+dy;
+          while (cells[y1] && cells[y1][x1] === opponent) {
+            cells[y1][x1] = turn;
+            x1+=dx;
+            y1+=dy;
+          }
+
+          return false;
+        } else {
+          return run > 0;
+        }
+      }
+
+      return false;
+    }
+    
+    return findLine(1,0)
+        || findLine(1,1)
+        || findLine(0,1)
+        || findLine(-1,1)
+        || findLine(-1,0)
+        || findLine(-1,-1)
+        || findLine(0,-1)
+        || findLine(1,-1)
+
+    return count;
+  }
+  
+  draw() {
+    ctx.strokeStyle = "black"
+    ctx.lineWidth = 0.05
+    
+    ctx.fillStyle = "black";
+
+    for (var y=0;y<this.cells.length;y++) {
+      for (var x0=0;x0<this.cells[0].length;x0++) {
+        // Stagger board
+        var x = x0*2;
+        if (y%2 == 0) x += 1;
+        
+        ctx.strokeRect(x,y,1,1)
+
+        if (this.cells[y][x0] > 0) {
+          ctx.fillStyle = this.cells[y][x0]==1 ? "black" : "white"
+          ctx.fillcirc(x+0.5,y+0.5,0.4)
+          ctx.stroke()
+        } 
+      }
+    }
+
+    this.checkVictory();
+    ctx.strokeStyle = "red"
+
+    if (this.winner === null) {
+      for (var i=0; i<this.legalMoves.length; i++) {
+        var x = this.legalMoves[i]%this.cells.length;
+        var y = Math.floor(this.legalMoves[i]/this.cells.length);
+        if (this.turn==1) {
+          line(x+0.4,y+0.5,x+0.6,y+0.5)
+        } else {
+          line(x+0.5,y+0.4,x+0.5,y+0.6)
+        }
+      }
+    }
+  }
+  
+  // make a move
+  // side effect: winner and legalMoves are updated
+  move(move) {
+    if (this.legalMoves.indexOf(move) == -1) {
+      alert("ILLEGAL MOVEEEEE!!!! "+move)
+    }
+
+    var x = move%this.cells[0].length
+    var y = Math.floor(move/this.cells[0].length)
+    
+    this.cells[y][x] = this.turn
+    this.findMatches(x,y,true)
+
+    this.turn = this.turn%2+1
+    
+    this.checkVictory()
+    //this.findLegalMoves()
+
+    if (this.legalMoves.length == 0) {
+      this.turn = this.turn%2+1
+      this.checkVictory()
+    }
+  }
+
+  playerInput(x,y) {
+    var x1 = Math.floor(x)
+    var y1 = Math.floor(y)
+    return x1 + this.cells[0].length*y1
+  }
+}
+
 class MCNode {
   // expects state to be fully initialized
   // i.e. legalMoves and winner set
@@ -1054,11 +1421,12 @@ class MCNode {
     this.state = state;
     this.children = [];
     this.parent = parent || null;
-    this.untriedMoves = state.winner===null ? state.legalMoves : [];
+    this.untriedMoves = state.winner===null ? state.legalMoves.map((e,i)=>i) : [];
     
     this.turn = state.turn;
     this.ties = 0;
     this.wins = 0;
+    this.prevwins = 0;
     this.tries = 0;
     this.interest = 10;
     if (parent) {
@@ -1068,9 +1436,12 @@ class MCNode {
     }
   }
   
+  /* old version of update()
   update(winner) {
     this.tries++
-    if (winner === -1 || winner === null) this.ties++;
+    if (winner === -1 || winner === null) {
+      this.ties++;
+    }
 
     if (this.invertWin) {
       if (winner !== this.turn && winner !== -1) {
@@ -1081,25 +1452,68 @@ class MCNode {
         this.wins++
       }
     }
-    //if (this.parent !== null) {
+    
+    if (this.parent !== null) {
       //this.interest = this.wins/this.tries + 0.5*Math.sqrt(Math.log(this.parent.tries)/this.tries)
-    //}
+      var prevturn = this.parent.turn
+      if (this.invertWin) {
+        if (winner !== prevturn && winner !== -1) {
+          this.prevwins++
+        }
+      } else {
+        if (winner === prevturn) {
+          this.prevwins++
+        }
+      }
+    }
+  }
+  */
+  
+  // new version of update() uses evaluation rather than winner/loser
+  // evaluation is scaled according to the player whose turn it is
+  update(winner, evaluation) {
+    let scaledEval = evaluation[this.turn];
+    
+    this.tries++
+    if (winner === -1 || winner === null) {
+      this.ties++;
+    }
+    
+    if (this.invertWin) {
+      scaledEval = 1-scaledEval;
+    }
+    
+    this.wins += scaledEval;
+    
+    if (this.parent !== null) {
+      //this.interest = this.wins/this.tries + 0.5*Math.sqrt(Math.log(this.parent.tries)/this.tries)
+      var prevturn = this.parent.turn
+      
+      scaledEval = evaluation[this.parent.turn];
+      
+      if (this.invertWin) {
+        scaledEval = 1-scaledEval;
+      }
+      
+      this.prevwins += scaledEval;
+    }
   }
   
   // select a child node ripe for the searchin'
   selectInteresting() {
     // why doesn't JS have a builtin for this
     
+    var explore = 1.0
     var res = this.children[0];
-    var logTries = Math.log(this.tries);
     var candidate = this.children[0]
-    var bestScore = (candidate.wins+candidate.ties*0.2)/candidate.tries + 0.5*Math.sqrt(logTries/candidate.tries);
+    var logTries = Math.log(this.tries)
+    var bestScore = candidate.prevwins/candidate.tries + explore*Math.sqrt(logTries/candidate.tries);
     
     for (var i=1; i<this.children.length; i++) {
       candidate = this.children[i]
-      var interest = candidate.wins/candidate.tries + 1*Math.sqrt(logTries/candidate.tries)
+      var interest = candidate.prevwins/candidate.tries + explore*Math.sqrt(logTries/candidate.tries);
       if (interest > bestScore) {
-        res = this.children[i];
+        res = candidate;
         bestScore = interest;
       }
     }
@@ -1134,10 +1548,9 @@ class MCNode {
     // this doesn't remove from untriedMoves
     var newState = this.state.clone()
     newState.findLegalMoves()
-    newState.move(move)
+    newState.move(newState.legalMoves[move])
     var newNode = new MCNode(newState, this)
     this.children.push(newNode)
-    newNode.turn = this.state.turn
     newNode.move = move
     
     return newNode;
@@ -1146,37 +1559,40 @@ class MCNode {
   // perform one MCT search step
   simulate() {
     var node = this
-    var state = this.state.clone()
+    var state;// = this.state.clone()
     
     // search for a node with untried moves or a leaf node
     while (node.untriedMoves.length===0 && node.children.length!==0) {
       node = node.selectInteresting()
-      state.move(node.move)
+      //state.move(state.legalMoves[node.move])
     }
     
     // expand with a child node if possible
     if (node.untriedMoves.length != 0) {
-      var oldTurn = state.turn
-      
+      state = node.state.clone();
       var i = Math.floor(Math.random()*node.untriedMoves.length)
       var move = node.untriedMoves.splice(i,1)[0]
 
-      state.move(move)
+      state.move(state.legalMoves[move])
       var newNode = new MCNode(state, node)
-      newNode.state = null;
+      //newNode.state = null;
       node.children.push(newNode)
-      newNode.turn = oldTurn
-      newNode.move = move
-
-      node = newNode
-    } else if ((!this.invertWin && state.winner === node.turn) || 
-               (this.invertWin && state.winner !== node.turn && state.winner !== -1)) {
-      // if a move leads to guranteed victory, always choose it
-      node.parent.children = [node]
-      node.parent.untriedMoves = []
+      newNode.move = move;
+      
+      if ((!this.invertWin && state.winner === node.turn) || 
+           (this.invertWin && state.winner !== node.turn && state.winner !== -1)) {
+        // if a move leads to guranteed victory, always choose it
+        node.children = [newNode]
+        node.untriedMoves = []
+      }
+      
+      node = newNode;
     }
 
     // play to completion
+    state = node.state.clone();
+    
+    state.isSpeedy = true;
     var limit = 0;
     if (state.randomMove) {
       while (state.winner === null && limit < 1000) {
@@ -1195,7 +1611,7 @@ class MCNode {
     var winner = state.winner;
 
     if (winner === null) {
-      console.log("No winner")
+      //console.log("No winner")
       winner = -1;
     }
 
@@ -1204,7 +1620,21 @@ class MCNode {
     
     var node2 = node
     while (node2) {
-      node2.update(winner)
+      let ev;
+      
+      if (state.getEvaluation) {
+        ev = state.getEvaluation();
+      } else {
+        if (winner === -1) {
+          ev = [0.1, 0.1];
+        } else if (winner === 1) {
+          ev = [1, 0];
+        } else {
+          ev = [0, 1];
+        }
+      }
+      
+      node2.update(winner, ev);
       node2 = node2.parent
     }
     
@@ -1249,10 +1679,10 @@ function drawBoard(board) {
   
   var text=`turn: ${game.turn}`
   if (root) {
-    text +=` ${root.wins}/${root.tries}`
+    text +=` (${root.state.legalMoves.length} options) ${root.wins.toFixed(1)}/${root.tries}`
     if (root.children.length > 0) {
       var best = root.getBest()
-      text += ` (${best.wins}/${best.tries})`
+      text += ` (${best.prevwins.toFixed(1)}/${best.tries})`
     }
   }
   if (game.winner !== null)
@@ -1268,18 +1698,21 @@ window.thing1 = function step() {
     var endTime = startTime + 100;
     var playerType = $(`#mode-${game.turn}`)[0].value
     var drawThoughts = (playerType == "CPU" && $("#show-thoughts")[0].checked)
+    var allowPrecomputation = $("#allow-precomputation")[0].checked;
     
     awaitHumanMove = false;
-    if (playerType == "CPU") {
+    if (playerType == "CPU" || allowPrecomputation) {
       do {
         root.simulate()
       } while (new Date().getTime() < endTime)
       root.elapsedTime += new Date().getTime() - startTime;
+    }
 
+    if (playerType == "CPU") {
       if (drawThoughts) {
         var bestMove = root.getBest().move
         var tmpBoard = game.clone()
-        tmpBoard.move(bestMove)
+        tmpBoard.move(tmpBoard.legalMoves[bestMove])
         drawBoard(tmpBoard)
       }
       if (root.elapsedTime > 1000*$(`#limit-time-${game.turn}`)[0].value
@@ -1290,15 +1723,16 @@ window.thing1 = function step() {
       //wait for human
       window.awaitHumanMove = true
     } else if (playerType == "random") {
-      move = game.legalMoves[Math.floor(Math.random()*game.legalMoves.length)]
+      move = Math.floor(Math.random()*game.legalMoves.length)
     }
+    
     if (move !== null) {
       makeMove(move)
       if ($("#pause-after-move")[0].checked)
         paused=true
     }
   }
-  if (!drawThoughts)
+  if (!(playerType == "CPU" && drawThoughts))
     drawBoard(game)
 }
 window.thing2 = function pause() {
@@ -1315,7 +1749,7 @@ window.undoGame = function undo() {
   if (gameHistory.length>0) {
     gameUndoHistory.push(game.clone())
     game = gameHistory.pop();
-    root = new MCNode(game.clone()) //root.findMove(move)
+    root = new MCNode(game.clone())
     root.parent = null;
     root.elapsedTime = 0;
     drawBoard(game);
@@ -1326,7 +1760,7 @@ window.redoGame = function redo() {
   if (gameUndoHistory.length>0) {
     gameHistory.push(game.clone())
     game = gameUndoHistory.pop();
-    root = new MCNode(game.clone()) //root.findMove(move)
+    root = new MCNode(game.clone())
     root.parent = null;
     root.elapsedTime = 0;
     drawBoard(game);
@@ -1349,6 +1783,8 @@ window.resetGame = function reset() {
       game.matchSquares=true;
       break;
     case "ConnectFour": game = new ConnectFourGameState(); break;
+    case "Checkers": game = new CheckersGameState(); break;
+    case "Go": game = new GoGameState(); break;
   }
   //game.matchSquares = true;
   game.findLegalMoves()
@@ -1369,7 +1805,7 @@ window.humanMove = function humanMove(x,y) {
     var move = game.playerInput(x,y)
     
     if (move !== null && game.legalMoves.indexOf(move) > -1) {
-      makeMove(move)
+      makeMove(game.legalMoves.indexOf(move))
     }
   }
   drawBoard(game)
@@ -1378,12 +1814,17 @@ window.humanMove = function humanMove(x,y) {
 function makeMove(move) {
   game.findLegalMoves()
   game.checkVictory()
-  if (game.winner === null && move !== null && game.legalMoves.indexOf(move) > -1) {
-    gameHistory.push(game.clone())
+  if (game.winner === null && move !== null && move >= 0 && move < game.legalMoves.length) {
+    gameHistory.push(game);
     gameUndoHistory = [];
     awaitHumanMove = false;
-    game.move(move)
-    root = new MCNode(game.clone()) //root.findMove(move)
+    game = game.clone();
+    game.move(game.legalMoves[move])
+    if ($("#allow-precomputation")[0].checked) {
+      root = root.findMove(move)
+    } else {
+      root = new MCNode(game.clone())
+    }
     root.parent = null;
     root.elapsedTime = 0;
     drawBoard(game)
@@ -1401,6 +1842,17 @@ function loop() {
 window.awaitHumanMove = false;
 gameHistory = [];
 gameUndoHistory = [];
+
+/// TEST CODE ///
+
+$("#game-select")[0].value = "Go";
+$("#mode-1")[0].value = "player";
+$("#mode-2")[0].value = "CPU";
+$("#limit-time-1")[0].value = "10";
+$("#limit-time-2")[0].value = "10";
+
+
+/// END TEST CODE ///
 
 paused = false;
 resetGame()

@@ -27,6 +27,17 @@
 <option>Quarto</option>
 <option value="QuartoSquare">Quarto (with square matches)</option>
 <option value="ConnectFour">Connect four</option>
+<option>Go</option>
+<!--
+<option>Tak</option>
+<option>Checkers</option>
+<option>Chess</option>
+<option>Gomoku</option>
+<option>Backgammon</option>
+<option>Khet</option>
+<option>Chomp</option>
+<option>Domineering</option>
+-->
 </select></div>
 
 <p class="desc desc-Pentago">Pentago: Place a piece of your color, then rotate one of the four quadrants by one quarter turn. The first to make a line of five wins. (To make a move, click the place you want to put your piece, then the left or right half of the quadrant you want to rotate counterclockwise or clockwise.)</p>
@@ -35,11 +46,17 @@
 <p class="desc desc-Quarto desc-QuartoSquare">Quarto: Place the piece given to you by your opponent, then give your opponent a piece. All pieces can be played by both players. Whoever is first to make a line of four pieces with one or more matching attributes (circle/square, black/white, red/blue, spot/spotless) wins.</p>
 <p class="desc desc-QuartoSquare">Pieces arranged in a 2 by 2 square also count for matches.</p>
 <p class="desc desc-ConnectFour">Connect Four: Place a piece at the bottom of one of the columns. The first to make a line of four wins.</p>
-<!-- planned games
-<p class="desc desc-Khet">Pick a piece, rotate it a quarter turn or move it to one of the 8 adjacent squares, then shoot your laser and remove the piece it hits. Pieces can't be moved onto the opposite color squares. Double mirrors and splitters can also trade places with any adjacent single mirror or blocker. Two allied blockers can stack together, and be moved as a whole. Whhoever loses their "pharoah" loses.</p>
+<p class="desc desc-Go">Go: Surround an orthogonally connected group of your opponent's stones to capture them. No move may result in the exact repetition of a previous board state, or result in a player's own stones becoming surrounded. When both players pass consecutively, the game ends. Whoever has the greatest sum of stones on the board plus surrounded empty spaces wins.</p>
+<!-- planned games -->
+<div class="desc desc-Tak"><p>Tak: On your first turn, play a flat stone of the opponent's color. On other turns, place a piece of your color on an empty space, or move a stack of up to 5 pieces topped by your color to an orthogonally adjacent space (optionally leaving pieces behind). When moving a stack, you can spread it in a single direction, leaving at least one piece on each space in the line. Pieces cannot be stacked upon capstones or standing stones, but capstones can flatten standing stones by landing directly on them.</p><p>Whoever makes a path of flat stones and capstones of their color connecting opposite edges of the board wins (by road), priority given to the player who just moved. If the board is completely full or either player runs out of pieces, whoever has the most exposed flat stones wins (by flats). (To move stacks, click the stack you want to move, then click spaces to drop pieces one at a time.)</p></div>
+<p class="desc desc-Khet">Khet: Pick a piece, rotate it a quarter turn or move it to one of the 8 adjacent squares, then shoot your laser and remove the piece it stops at. Pieces can't be moved onto the opposite color squares. Double mirrors and splitters can also trade places with any adjacent single mirror or blocker. Two allied blockers can stack together, and be moved as a whole. Whoever loses their pharoah loses.</p>
 <p class="desc desc-Checkers">Checkers: Move one diagonal square forward, or jump over an opponent piece to capture. If you can capture, you must. Pieces that have reached the end of the board can move backwards also.</p>
-<p class="desc desc-Chess">Yeah, you'd better just read the rules.</p>
--->
+<div class="desc desc-Backgammon"><p>Backgammon: For each die, move a piece that many spaces forward. If doubles are rolled, you may use the number shown 4 times instead of 2. You must use both dice if possible, otherwise just the larger die, otherwise just the smaller one. Allied pieces can share a point. If your piece lands on a point with a single opponent piece, that piece is sent to the bar (before the first point), and must be moved before any other move is made. </p><p>Once all of your pieces are 6 points away from the end, you may move them just after the last point to cast them off. Pieces that are farthest away from the end don't need to move the exact distance to cast off. Whoever casts off all their pieces first wins. (The board is a straight path bent into a "C" shape.  This is purely visual and has no effect on gameplay.)</p></div>
+<div class="desc desc-Chess"><p>Chess: Each piece moves according to specific rules, and may capture opponent pieces by moving onto their square.</p><p>Pawns move forward one space, but capture diagonally forward. On their first movement, a pawn may move two spaces forward, but can be captured "en passant" by another pawn attacking the space skipped. If a pawn reaches the opponent's edge of the board, it is promoted into any other piece but the king.</p><p>Rooks move an unlimited distance orthogonally.</p><p>Knights move two spaces and then one space perpendicular in a single move.</p><p>Bishops move an unlimited distance diagonally.</p><p>Queens move like a bishop or rook.</p><p>Kings move to any orthogonally or diagonally adjacent space. Kings can castle, moving themselves 2 spaces towards a rook and moving the rook to the space crossed, provided neither piece has moved (indicated by a mark near the rook), the king is not in check and does not pass through an attacked square, and the spaces in between are empty. Moves which would place your own king in check are forbidden. Whoever places the opponent's king in checkmate, one turn away from guranteed capture, wins.</p><p>If either player has no legal moves and is not in check, a board position occurs three times, 50 moves have passed with no captures or pawn moves, or both sides are reduced to just their king and either a bishop or a knight, the game is a draw.</p></div>
+<p class="desc desc-Gomoku">Gomoku: Players take turns placing stones on empty intersections. The first to make a line of five stones of their color horizontally, vertically, or diagonally wins.</p>
+<p class="desc desc-Chomp">Chomp: Click a square, which will delete that square and all squares above and to the right. Whoever clicks the last square loses.</p>
+<p class="desc desc-Chomp">Domineering: Player 1 plays vertical dominoes and player 2 plays horizontal ones. The last player to place a domino wins.</p>
+<!-- -->
 
 
 <button onclick="resetGame()">reset</button>
@@ -77,6 +94,7 @@
 
 <label>Pause CPU after move <input type="checkbox" id="pause-after-move"></label>
 <label>Show CPU thoughts <input type="checkbox" id="show-thoughts"></label>
+<label>Allow precomputation <input type="checkbox" id="allow-precomputation"></label>
 <div></div>
 <label>Invert win condition <input type="checkbox" id="invert-win"></label>
 
