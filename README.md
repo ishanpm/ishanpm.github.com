@@ -10,6 +10,8 @@ I made a cellular automaton called [Pulse2](https://github.com/ishanpm/pulse-ca)
 
 Here's an [easy infinite minesweeper implementation](/easy-minesweeper) I made one afternoon. Drag your cursor over revealed cells and experience catharsis.
 
+I made a [Zendo-themed module](https://steamcommunity.com/sharedfiles/filedetails/?id=2843566251) for Keep Talking and Nobody Explodes. You can [see the manual](https://ktane.timwi.de/HTML/Zendo.html) or [try the online prototype](https://ishanpm.github.io/ktane-zendo-prototype/Zendo%20Interactive.html).
+
 My [itch.io page](https://woofmao.itch.io) has some of my other games.
 
 I also have a Scratch account. Two, actually: [Qwertyperson](https://scratch.mit.edu/users/qwertyperson/) has more finished stuff, and [murphyis2018](https://scratch.mit.edu/users/murphyis2018/) has less finished stuff. 
